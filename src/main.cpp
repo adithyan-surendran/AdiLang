@@ -1,5 +1,6 @@
 #include <iostream>
 #include "lexer.h"
+#include "parser.h" 
 
 std::string tokenName(TokenType type) {
 
@@ -56,24 +57,21 @@ std::string tokenName(TokenType type) {
     return "UNKNOWN";
 }
 
-int main() {
-
+int main()
+{
     std::string source =
-        "let x = 10.5;\n"
-        "let y = @;";
+        "let x = 10 + 20 * 2;"
+        "print(x);";
 
     Lexer lexer(source);
 
     auto tokens = lexer.scanTokens();
 
-    for (const auto& token : tokens) {
+    Parser parser(tokens);
 
-        std::cout
-            << tokenName(token.type)
-            << " : "
-            << token.lexeme
-            << '\n';
-    }
+    parser.parse();
+
+    std::cout << "Parsing completed!\n";
 
     return 0;
 }
