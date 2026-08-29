@@ -93,65 +93,104 @@ void Parser::variableDeclaration()
         "Expected ';' after variable declaration"
     );
 }
-void Parser::expression()
+std::unique_ptr<Expr> Parser::expression()
 {
-    addition();
+    return addition();
 }
-void Parser::addition()
+std::unique_ptr<Expr> Parser::addition()
 {
-    multiplication();
+    auto expr = multiplication();
 
     while (
         match(TokenType::PLUS) ||
         match(TokenType::MINUS)
     )
     {
-        multiplication();
+        TokenType op = previous().type;
+
+        auto right = multiplication();
+
+        expr = std::make_unique<BinaryExpr>(
+            std::move(expr),
+            op,
+            std::move(right)
+        );
     }
+
+    return expr;
 }
-void Parser::multiplication()
+std::unique_ptr<Expr> Parser::multiplication()
 {
-    primary();
+    auto expr = primary();
 
     while (
         match(TokenType::STAR) ||
         match(TokenType::SLASH)
     )
     {
-        primary();
+        TokenType op = previous().type;
+
+        auto right = primary();
+
+        expr = std::make_unique<BinaryExpr>(
+            std::move(expr),
+            op,
+            std::move(right)
+        );
     }
+
+    return expr;
 }
-void Parser::primary()
+std::unique_ptr<Expr> Parser::primary()
 {
     if (match(TokenType::NUMBER))
-        return;
+    {
+        double value =
+            std::stod(previous().lexeme);
+
+        return std::make_unique<NumberExpr>(value);
+    }
 
     if (match(TokenType::STRING))
-        return;
+    {
+        return std::make_unique<StringExpr>(
+            previous().lexeme
+        );
+    }
 
     if (match(TokenType::IDENTIFIER))
-        return;
+    {
+        return std::make_unique<VariableExpr>(
+            previous().lexeme
+        );
+    }
 
     if (match(TokenType::TRUE))
-        return;
+    {
+        return std::make_unique<VariableExpr>("true");
+    }
 
     if (match(TokenType::FALSE))
-        return;
+    {
+        return std::make_unique<VariableExpr>("false");
+    }
 
     if (match(TokenType::LEFT_PAREN))
     {
-        expression();
+        auto expr = expression();
 
         consume(
             TokenType::RIGHT_PAREN,
             "Expected ')'"
         );
 
-        return;
+        return expr;
     }
 
     std::cerr
         << "Parser Error: Expected expression\n";
+
+    return nullptr;
 }
 void Parser::printStatement()
 {
