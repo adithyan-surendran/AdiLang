@@ -45,6 +45,8 @@ enum class TokenType {
 struct Token {
     TokenType type;
     std::string lexeme;
+    int line;
+    int column;
 };
 
 class Lexer {
@@ -54,6 +56,9 @@ private:
 
     int start = 0;
     int current = 0;
+
+    int line = 1;
+    int column = 1;
 
     void scanToken();
     void identifier();

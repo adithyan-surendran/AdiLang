@@ -59,7 +59,8 @@ std::string tokenName(TokenType type) {
 int main() {
 
     std::string source =
-        "let x = 10 + 20;";
+        "let x = 10.5;\n"
+        "let y = @;";
 
     Lexer lexer(source);
 

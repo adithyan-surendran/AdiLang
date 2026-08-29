@@ -1,5 +1,6 @@
 #include "lexer.h"
 #include <cctype>
+#include <iostream>
 
 Lexer::Lexer(const std::string& source)
     : source(source) {
@@ -22,7 +23,18 @@ std::vector<Token> Lexer::scanTokens() {
 }
 
 char Lexer::advance() {
-    return source[current++];
+
+    char c = source[current++];
+
+    if (c == '\n') {
+        line++;
+        column = 1;
+    }
+    else {
+        column++;
+    }
+
+    return c;
 }
 
 char Lexer::peek() {
@@ -55,13 +67,26 @@ void Lexer::addToken(TokenType type) {
     std::string text =
         source.substr(start, current - start);
 
-    tokens.push_back({type, text});
+    tokens.push_back({
+        type,
+        text,
+        line,
+        column
+    });
 }
 
-void Lexer::addToken(TokenType type, std::string value) {
+void Lexer::addToken(
+    TokenType type,
+    std::string value
+) {
 
-    tokens.push_back({type, value});
-}
+    tokens.push_back({
+        type,
+        value,
+        line,
+        column
+    });
+}   
 void Lexer::scanToken() {
 
     char c = advance();
@@ -165,9 +190,22 @@ void Lexer::scanToken() {
 
                 number();
 
-            } else if (std::isalpha(c) || c == '_') {
+            }
+            else if (std::isalpha(c) || c == '_') {
 
                 identifier();
+
+            }
+            else {
+
+                std::cerr
+                    << "Error at line "
+                    << line
+                    << ", column "
+                    << column
+                    << ": Unexpected character '"
+                    << c
+                    << "'\n";
             }
 
             break;
@@ -177,6 +215,17 @@ void Lexer::number() {
 
     while (std::isdigit(peek())) {
         advance();
+    }
+
+    // Decimal part
+    if (peek() == '.' &&
+        std::isdigit(peekNext())) {
+
+        advance();
+
+        while (std::isdigit(peek())) {
+            advance();
+        }
     }
 
     addToken(TokenType::NUMBER);
