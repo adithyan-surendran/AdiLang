@@ -21,6 +21,8 @@ enum class TokenType {
     CONTINUE,
     TRUE,
     FALSE,
+    FN,
+    RETURN,
 
     // Operators
     PLUS,
@@ -47,6 +49,7 @@ enum class TokenType {
     RIGHT_PAREN,
     LEFT_BRACE,
     RIGHT_BRACE,
+    COMMA,
     SEMICOLON,
     // Logical Operators
     AND_AND,      // &&

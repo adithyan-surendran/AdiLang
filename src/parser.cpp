@@ -91,6 +91,12 @@ std::unique_ptr<Stmt> Parser::statement()
     {
         return continueStatement();
     }
+    if (match(TokenType::FN)) {
+        return functionDeclaration();
+    }
+    if (match(TokenType::RETURN)) {
+        return returnStatement();
+    }
     if (match(TokenType::LEFT_BRACE))
     {
         return block();
@@ -311,7 +317,7 @@ std::unique_ptr<Expr> Parser::unary()
         return std::make_unique<UnaryExpr>(op, std::move(right));
     }
 
-    return primary();
+    return call(); 
 }
 std::unique_ptr<Expr> Parser::primary()
 {
@@ -473,4 +479,86 @@ std::unique_ptr<Stmt> Parser::continueStatement()
 {
     consume(TokenType::SEMICOLON, "Expected ';' after 'continue'.");
     return std::make_unique<ContinueStatement>();
+}
+std::unique_ptr<Stmt> Parser::functionDeclaration() {
+    if (!match(TokenType::IDENTIFIER)) {
+        throw std::runtime_error("Parser Error: Expected function name after 'fn'.");
+    }
+    std::string name = previous().lexeme;
+
+    if (!match(TokenType::LEFT_PAREN)) {
+        throw std::runtime_error("Parser Error: Expected '(' after function name.");
+    }
+
+    std::vector<std::string> parameters;
+    if (!check(TokenType::RIGHT_PAREN)) {
+        do {
+            if (parameters.size() >= 255) {
+                throw std::runtime_error("Parser Error: Cannot have more than 255 parameters.");
+            }
+            if (!match(TokenType::IDENTIFIER)) {
+                throw std::runtime_error("Parser Error: Expected parameter name.");
+            }
+            parameters.push_back(previous().lexeme);
+        } while (match(TokenType::COMMA));
+    }
+
+    if (!match(TokenType::RIGHT_PAREN)) {
+        throw std::runtime_error("Parser Error: Expected ')' after parameters.");
+    }
+
+    if (!match(TokenType::LEFT_BRACE)) {
+        throw std::runtime_error("Parser Error: Expected '{' before function body.");
+    }
+
+    // Change blockStatement() to block() (or whatever your block parsing method is named)
+    auto bodyStmt = block(); 
+    auto body = std::unique_ptr<BlockStatement>(dynamic_cast<BlockStatement*>(bodyStmt.release()));
+
+    return std::make_unique<FunctionStatement>(name, std::move(parameters), std::move(body));
+}
+
+std::unique_ptr<Stmt> Parser::returnStatement() {
+    Token keyword = previous();
+    std::unique_ptr<Expr> value = nullptr;
+    if (!check(TokenType::SEMICOLON)) {
+        value = expression();
+    }
+
+    if (!match(TokenType::SEMICOLON)) {
+        throw std::runtime_error("Parser Error: Expected ';' after return value.");
+    }
+
+    return std::make_unique<ReturnStatement>(std::move(value));
+}
+std::unique_ptr<Expr> Parser::call() {
+    auto expr = primary();
+
+    while (true) {
+        if (match(TokenType::LEFT_PAREN)) {
+            expr = finishCall(std::move(expr));
+        } else {
+            break;
+        }
+    }
+
+    return expr;
+}
+
+std::unique_ptr<Expr> Parser::finishCall(std::unique_ptr<Expr> callee) {
+    std::vector<std::unique_ptr<Expr>> arguments;
+    if (!check(TokenType::RIGHT_PAREN)) {
+        do {
+            if (arguments.size() >= 255) {
+                throw std::runtime_error("Parser Error: Cannot have more than 255 arguments.");
+            }
+            arguments.push_back(expression());
+        } while (match(TokenType::COMMA));
+    }
+
+    if (!match(TokenType::RIGHT_PAREN)) {
+        throw std::runtime_error("Parser Error: Expected ')' after arguments.");
+    }
+
+    return std::make_unique<CallExpr>(std::move(callee), std::move(arguments));
 }

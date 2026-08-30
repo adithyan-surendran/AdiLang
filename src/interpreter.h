@@ -9,9 +9,27 @@
 #include <vector>
 #include <cmath>
 
+// Forward declaration
+class Interpreter;
+
+// Runtime representation of an AdiLang user-defined function
+struct AdiFunction {
+    const FunctionStatement* declaration;
+    std::shared_ptr<Environment> closure;
+
+    AdiFunction(const FunctionStatement* declaration, std::shared_ptr<Environment> closure)
+        : declaration(declaration), closure(closure) {}
+
+    Value call(Interpreter& interpreter, const std::vector<Value>& arguments);
+};
+
 // Sentinel jump signals for interpreter unwinding
 struct BreakJump {};
 struct ContinueJump {};
+struct ReturnJump {
+    Value value;
+    explicit ReturnJump(Value val) : value(val) {}
+};
 
 // Helper to determine truthiness in AdiLang (defined BEFORE Interpreter class)
 inline bool isTruthy(const Value& val) {
@@ -42,6 +60,22 @@ public:
         } catch (const std::runtime_error& error) {
             std::cerr << "CRITICAL RUNTIME ERROR: " << error.what() << "\n";
         }
+    }
+
+    // Public helper so AdiFunction can execute blocks in its own scope environment
+    void executeBlock(const std::vector<std::unique_ptr<Stmt>>& statements,
+                      std::shared_ptr<Environment> blockEnv) {
+        std::shared_ptr<Environment> previous = this->environment;
+        try {
+            this->environment = blockEnv;
+            for (const auto& stmt : statements) {
+                execute(stmt.get());
+            }
+        } catch (...) {
+            this->environment = previous;
+            throw;
+        }
+        this->environment = previous;
     }
 
 private:
@@ -97,24 +131,19 @@ private:
         else if (dynamic_cast<const ContinueStatement*>(stmt)) {
             throw ContinueJump{};
         }
-        else if (auto exprStmt = dynamic_cast<const ExpressionStatement*>(stmt)) {
-            evaluate(exprStmt->expression.get());
+        // 9. Function Declaration: fn name(...) { ... }
+        else if (auto funcStmt = dynamic_cast<const FunctionStatement*>(stmt)) {
+            auto function = std::make_shared<AdiFunction>(funcStmt, environment);
+            environment->define(funcStmt->name, function);
         }
-    }
-
-    void executeBlock(const std::vector<std::unique_ptr<Stmt>>& statements,
-                      std::shared_ptr<Environment> blockEnv) {
-        std::shared_ptr<Environment> previous = this->environment;
-        try {
-            this->environment = blockEnv;
-            for (const auto& stmt : statements) {
-                execute(stmt.get());
+        // 10. Return Statement: return <expr>;
+        else if (auto returnStmt = dynamic_cast<const ReturnStatement*>(stmt)) {
+            Value val = false; // Default return if empty
+            if (returnStmt->value != nullptr) {
+                val = evaluate(returnStmt->value.get());
             }
-        } catch (...) {
-            this->environment = previous;
-            throw;
+            throw ReturnJump(val);
         }
-        this->environment = previous;
     }
 
     // --- Expression Evaluation ---
@@ -145,7 +174,30 @@ private:
             return environment->get(var->name);
         }
 
-        // 4. Unary Operations: !a, -a
+        // 4. Function Call Expression: callee(args...)
+        if (auto callExpr = dynamic_cast<const CallExpr*>(expr)) {
+            Value callee = evaluate(callExpr->callee.get());
+
+            std::vector<Value> arguments;
+            for (const auto& arg : callExpr->arguments) {
+                arguments.push_back(evaluate(arg.get()));
+            }
+
+            if (!std::holds_alternative<std::shared_ptr<AdiFunction>>(callee)) {
+                throw std::runtime_error("Can only call functions.");
+            }
+
+            auto function = std::get<std::shared_ptr<AdiFunction>>(callee);
+            
+            if (arguments.size() != function->declaration->params.size()) {
+                throw std::runtime_error("Expected " + std::to_string(function->declaration->params.size()) +
+                                            " arguments but got " + std::to_string(arguments.size()) + ".");
+            }
+
+            return function->call(*this, arguments);
+        }
+
+        // 5. Unary Operations: !a, -a
         if (auto un = dynamic_cast<const UnaryExpr*>(expr)) {
             Value right = evaluate(un->right.get());
 
@@ -160,7 +212,7 @@ private:
             }
         }
 
-        // 5. Logical Operations with Short-Circuiting: &&, ||
+        // 6. Logical Operations with Short-Circuiting: &&, ||
         if (auto log = dynamic_cast<const LogicalExpr*>(expr)) {
             Value left = evaluate(log->left.get());
 
@@ -173,7 +225,7 @@ private:
             return isTruthy(evaluate(log->right.get()));
         }
 
-        // 6. Binary Operations
+        // 7. Binary Operations
         if (auto bin = dynamic_cast<const BinaryExpr*>(expr)) {
             Value left = evaluate(bin->left.get());
             Value right = evaluate(bin->right.get());
@@ -235,5 +287,22 @@ private:
         throw std::runtime_error("Unknown expression node.");
     }
 };
+
+// Implement AdiFunction::call outside Interpreter class definition
+inline Value AdiFunction::call(Interpreter& interpreter, const std::vector<Value>& arguments) {
+    auto funcEnv = std::make_shared<Environment>(closure);
+
+    for (size_t i = 0; i < declaration->params.size(); i++) {
+        funcEnv->define(declaration->params[i], arguments[i]);
+    }
+
+    try {
+        interpreter.executeBlock(declaration->body->statements, funcEnv);
+    } catch (const ReturnJump& ret) {
+        return ret.value;
+    }
+
+    return false; // Implicit return
+}
 
 #endif // ADILANG_INTERPRETER_H

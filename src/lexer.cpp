@@ -110,6 +110,10 @@ void Lexer::scanToken() {
             addToken(TokenType::RIGHT_BRACE);
             break;
 
+        case ',':
+            addToken(TokenType::COMMA);
+            break;
+
         case ';':
             addToken(TokenType::SEMICOLON);
             break;
@@ -303,6 +307,12 @@ void Lexer::identifier() {
 
     else if (text == "continue")          
         addToken(TokenType::CONTINUE);
+
+    else if (text == "fn")
+        addToken(TokenType::FN);
+
+    else if (text == "return")
+        addToken(TokenType::RETURN);
         
     else if (text == "true")
         addToken(TokenType::TRUE);

@@ -214,4 +214,33 @@ public:
     std::vector<std::unique_ptr<Stmt>> statements;
 };
 
+// --- Function Statement: fn name(param1, param2) { body } ---
+class FunctionStatement : public Stmt {
+public:
+    std::string name;
+    std::vector<std::string> params;
+    std::unique_ptr<BlockStatement> body;
+
+    FunctionStatement(std::string name, std::vector<std::string> params, std::unique_ptr<BlockStatement> body)
+        : name(std::move(name)), params(std::move(params)), body(std::move(body)) {}
+};
+
+// --- Return Statement: return <expr>; ---
+class ReturnStatement : public Stmt {
+public:
+    std::unique_ptr<Expr> value;
+
+    explicit ReturnStatement(std::unique_ptr<Expr> value)
+        : value(std::move(value)) {}
+};
+
+// --- Call Expression: callee(arg1, arg2) ---
+class CallExpr : public Expr {
+public:
+    std::unique_ptr<Expr> callee;
+    std::vector<std::unique_ptr<Expr>> arguments;
+
+    CallExpr(std::unique_ptr<Expr> callee, std::vector<std::unique_ptr<Expr>> arguments)
+        : callee(std::move(callee)), arguments(std::move(arguments)) {}
+};
 #endif // ADILANG_AST_H

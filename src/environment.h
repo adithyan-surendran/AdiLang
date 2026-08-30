@@ -8,14 +8,19 @@
 #include <stdexcept>
 #include <iostream>
 
-// Represents any dynamic runtime value in AdiLang
-using Value = std::variant<double, std::string, bool>;
+// Forward declaration of AdiFunction
+struct AdiFunction;
+
+// Represents any dynamic runtime value in AdiLang (including user functions)
+using Value = std::variant<double, std::string, bool, std::shared_ptr<AdiFunction>>;
 
 // Helper to print a Value to an output stream
 inline void printValue(const Value& val) {
     std::visit([](const auto& v) {
         if constexpr (std::is_same_v<std::decay_t<decltype(v)>, bool>) {
             std::cout << (v ? "true" : "false");
+        } else if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::shared_ptr<AdiFunction>>) {
+            std::cout << "<fn>";
         } else {
             std::cout << v;
         }

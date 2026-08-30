@@ -19,6 +19,8 @@ private:
     std::unique_ptr<Stmt> forStatement();
     std::unique_ptr<Stmt> breakStatement();
     std::unique_ptr<Stmt> continueStatement();
+    std::unique_ptr<Stmt> functionDeclaration();
+    std::unique_ptr<Stmt> returnStatement();
     std::unique_ptr<Stmt> block();
     std::unique_ptr<Stmt> variableDeclaration();
     std::unique_ptr<Stmt> printStatement();
@@ -35,6 +37,8 @@ private:
     std::unique_ptr<Expr> multiplication();
     std::unique_ptr<Expr> unary();
     std::unique_ptr<Expr> primary(); 
+    std::unique_ptr<Expr> call();
+    std::unique_ptr<Expr> finishCall(std::unique_ptr<Expr> callee);
 
     // Helper Token Methods
     Token advance();

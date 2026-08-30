@@ -41,6 +41,8 @@ std::string tokenName(TokenType type) {
         case TokenType::FOR: return "FOR";
         case TokenType::BREAK: return "BREAK";
         case TokenType::CONTINUE: return "CONTINUE";
+        case TokenType::FN: return "FN";
+        case TokenType::RETURN: return "RETURN";
 
         case TokenType::TRUE: return "TRUE";
         case TokenType::FALSE: return "FALSE";
@@ -49,6 +51,7 @@ std::string tokenName(TokenType type) {
         case TokenType::RIGHT_PAREN: return "RIGHT_PAREN";
         case TokenType::LEFT_BRACE: return "LEFT_BRACE";
         case TokenType::RIGHT_BRACE: return "RIGHT_BRACE";
+        case TokenType::COMMA: return "COMMA";
         case TokenType::SEMICOLON: return "SEMICOLON";
 
         case TokenType::END_OF_FILE: return "EOF";
@@ -59,37 +62,24 @@ std::string tokenName(TokenType type) {
 
 int main() {
     std::string source =
-        "print(\"=== 1. Modulo & Percent Equal Test ===\");\n"
-        "let val = 17;\n"
-        "val %= 5;\n"
-        "print(\"17 %= 5 (expect 2):\");\n"
-        "print(val);\n"
+        "print(\"=== v0.7.0 User-Defined Functions Test ===\");\n"
         "\n"
-        "print(\"=== 2. Compound Assignments Test ===\");\n"
-        "let x = 10;\n"
-        "x += 5;  // 15\n"
-        "x -= 3;  // 12\n"
-        "x *= 2;  // 24\n"
-        "x /= 4;  // 6\n"
-        "print(\"Result after compound math (expect 6):\");\n"
-        "print(x);\n"
-        "\n"
-        "print(\"=== 3. Loop Control & Accumulator Test ===\");\n"
-        "let sum = 0;\n"
-        "let i = 1;\n"
-        "while (i <= 6) {\n"
-        "    if (i == 3) {\n"
-        "        i += 1;\n"
-        "        continue;\n"
-        "    }\n"
-        "    if (i == 6) {\n"
-        "        break;\n"
-        "    }\n"
-        "    sum += i;\n"
-        "    i += 1;\n"
+        "fn add(a, b) {\n"
+        "    return a + b;\n"
         "}\n"
-        "print(\"Sum of 1..5 skipping 3 (expect 1 + 2 + 4 + 5 = 12):\");\n"
-        "print(sum);\n";
+        "\n"
+        "fn factorial(n) {\n"
+        "    if (n <= 1) {\n"
+        "        return 1;\n"
+        "    }\n"
+        "    return n * factorial(n - 1);\n"
+        "}\n"
+        "\n"
+        "print(\"Result of add(10, 32):\");\n"
+        "print(add(10, 32));\n"
+        "\n"
+        "print(\"Result of factorial(5) (expect 120):\");\n"
+        "print(factorial(5));\n";
 
     Lexer lexer(source);
     auto tokens = lexer.scanTokens();
@@ -104,7 +94,7 @@ int main() {
     }
 
     std::cout << "==============================\n";
-    std::cout << "       ADILANG v0.6.5 RUN     \n";
+    std::cout << "       ADILANG v0.7.0 RUN     \n";
     std::cout << "==============================\n";
     Interpreter interpreter;
     interpreter.interpret(*program);
