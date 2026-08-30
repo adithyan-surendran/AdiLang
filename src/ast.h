@@ -142,7 +142,17 @@ public:
     }
 
 };
+class WhileStatement : public Stmt
+{
+public:
+    std::unique_ptr<Expr> condition;
+    std::unique_ptr<Stmt> body;
 
+    WhileStatement(std::unique_ptr<Expr> condition, std::unique_ptr<Stmt> body)
+        : condition(std::move(condition)), body(std::move(body))
+    {
+    }
+};
 // ==========================================
 // 3. Root Node: Program
 // ==========================================

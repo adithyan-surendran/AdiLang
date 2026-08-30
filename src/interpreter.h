@@ -72,6 +72,11 @@ private:
                 execute(ifStmt->elseBranch.get());
             }
         }
+        else if (auto whileStmt = dynamic_cast<const WhileStatement*>(stmt)) {
+            while (isTruthy(evaluate(whileStmt->condition.get()))) {
+                execute(whileStmt->body.get());
+            }
+        }
     }
 
     void executeBlock(const std::vector<std::unique_ptr<Stmt>>& statements,

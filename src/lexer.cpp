@@ -272,6 +272,9 @@ void Lexer::identifier() {
     else if (text == "else")
         addToken(TokenType::ELSE);
 
+    else if (text == "while")           
+        addToken(TokenType::WHILE);
+
     else if (text == "true")
         addToken(TokenType::TRUE);
 

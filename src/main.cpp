@@ -33,7 +33,7 @@ std::string tokenName(TokenType type) {
         case TokenType::PRINT: return "PRINT";
         case TokenType::IF: return "IF";
         case TokenType::ELSE: return "ELSE";
-
+        case TokenType::WHILE: return "WHILE";
         case TokenType::TRUE: return "TRUE";
         case TokenType::FALSE: return "FALSE";
 
@@ -61,12 +61,12 @@ std::string tokenName(TokenType type) {
 
 int main() {
     std::string source =
-        "let x = 10;\n"
-        "print(x);\n"
-        "x = 25;\n"
-        "print(x);\n"
-        "x = x + 15;\n"
-        "print(x);\n";
+        "let count = 1;\n"
+        "while (count <= 5) {\n"
+        "    print(count);\n"
+        "    count = count + 1;\n"
+        "}\n"
+        "print(\"Loop finished!\");\n";
 
     Lexer lexer(source);
     auto tokens = lexer.scanTokens();
@@ -75,7 +75,10 @@ int main() {
     auto program = parser.parse();
 
     SemanticAnalyzer analyzer;
-    if (!analyzer.analyze(*program)) return 1;
+    if (!analyzer.analyze(*program)) {
+        std::cerr << "Semantic check failed.\n";
+        return 1;
+    }
 
     Interpreter interpreter;
     interpreter.interpret(*program);

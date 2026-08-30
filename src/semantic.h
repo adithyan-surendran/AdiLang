@@ -56,8 +56,12 @@ private:
         analyzeStmt(ifStmt->thenBranch.get());
         if (ifStmt->elseBranch) {
             analyzeStmt(ifStmt->elseBranch.get());
+            }
         }
-    }
+        else if (auto whileStmt = dynamic_cast<const WhileStatement*>(stmt)) {
+            analyzeExpr(whileStmt->condition.get());
+            analyzeStmt(whileStmt->body.get());
+        }
     }
 
     void analyzeExpr(const Expr* expr) {

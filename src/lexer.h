@@ -15,6 +15,7 @@ enum class TokenType {
     PRINT,
     IF,
     ELSE,
+    WHILE,
     TRUE,
     FALSE,
 

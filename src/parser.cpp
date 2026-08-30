@@ -73,6 +73,11 @@ std::unique_ptr<Stmt> Parser::statement()
         return ifStatement();
     }
 
+    if (match(TokenType::WHILE))       
+    {                                  
+        return whileStatement();       
+    }
+
     if (match(TokenType::LEFT_BRACE))
     {
         return block();
@@ -334,4 +339,14 @@ std::unique_ptr<Stmt> Parser::expressionStatement()
     );
 
     return std::make_unique<ExpressionStatement>(std::move(expr));
+}
+std::unique_ptr<Stmt> Parser::whileStatement()
+{
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'while'.");
+    auto condition = expression();
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after while condition.");
+
+    auto body = statement();
+
+    return std::make_unique<WhileStatement>(std::move(condition), std::move(body));
 }

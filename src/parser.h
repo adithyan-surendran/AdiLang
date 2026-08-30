@@ -15,6 +15,7 @@ private:
     // Statements
     std::unique_ptr<Stmt> statement();
     std::unique_ptr<Stmt> ifStatement();
+    std::unique_ptr<Stmt> whileStatement();
     std::unique_ptr<Stmt> block();
     std::unique_ptr<Stmt> variableDeclaration();
     std::unique_ptr<Stmt> printStatement();
