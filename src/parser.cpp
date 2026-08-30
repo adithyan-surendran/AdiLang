@@ -78,6 +78,11 @@ std::unique_ptr<Stmt> Parser::statement()
         return whileStatement();       
     }
 
+    if (match(TokenType::FOR))
+    {
+        return forStatement();
+    }
+
     if (match(TokenType::LEFT_BRACE))
     {
         return block();
@@ -376,4 +381,61 @@ std::unique_ptr<Stmt> Parser::whileStatement()
     auto body = statement();
 
     return std::make_unique<WhileStatement>(std::move(condition), std::move(body));
+}
+std::unique_ptr<Stmt> Parser::forStatement()
+{
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'for'.");
+
+    // 1. Initializer: 'let i = 0;' OR 'i = 0;' OR ';'
+    std::unique_ptr<Stmt> initializer = nullptr;
+    if (match(TokenType::SEMICOLON)) {
+        initializer = nullptr;
+    } else if (match(TokenType::LET)) {
+        initializer = variableDeclaration();
+    } else {
+        initializer = expressionStatement();
+    }
+
+    // 2. Condition: 'i < 10;' (defaults to 'true' if omitted)
+    std::unique_ptr<Expr> condition = nullptr;
+    if (!check(TokenType::SEMICOLON)) {
+        condition = expression();
+    }
+    consume(TokenType::SEMICOLON, "Expected ';' after loop condition.");
+
+    // 3. Increment: 'i = i + 1)' (optional)
+    std::unique_ptr<Expr> increment = nullptr;
+    if (!check(TokenType::RIGHT_PAREN)) {
+        increment = expression();
+    }
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after for clauses.");
+
+    // 4. Body Statement
+    auto body = statement();
+
+    // --- Syntactic Desugaring to While Loop AST ---
+
+    // A. If increment exists, attach it to the end of the body in a block
+    if (increment != nullptr) {
+        std::vector<std::unique_ptr<Stmt>> bodyStmts;
+        bodyStmts.push_back(std::move(body));
+        bodyStmts.push_back(std::make_unique<ExpressionStatement>(std::move(increment)));
+        body = std::make_unique<BlockStatement>(std::move(bodyStmts));
+    }
+
+    // B. If condition is omitted (e.g. for (;;)), treat condition as true
+    if (condition == nullptr) {
+        condition = std::make_unique<VariableExpr>("true");
+    }
+    body = std::make_unique<WhileStatement>(std::move(condition), std::move(body));
+
+    // C. If initializer exists, wrap both initializer and while loop in an outer scope block
+    if (initializer != nullptr) {
+        std::vector<std::unique_ptr<Stmt>> blockStmts;
+        blockStmts.push_back(std::move(initializer));
+        blockStmts.push_back(std::move(body));
+        body = std::make_unique<BlockStatement>(std::move(blockStmts));
+    }
+
+    return body;
 }

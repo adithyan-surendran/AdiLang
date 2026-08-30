@@ -298,6 +298,9 @@ void Lexer::identifier() {
     else if (text == "while")           
         addToken(TokenType::WHILE);
 
+    else if (text == "for")          
+        addToken(TokenType::FOR);
+
     else if (text == "true")
         addToken(TokenType::TRUE);
 

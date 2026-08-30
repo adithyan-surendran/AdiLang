@@ -34,6 +34,7 @@ std::string tokenName(TokenType type) {
         case TokenType::IF: return "IF";
         case TokenType::ELSE: return "ELSE";
         case TokenType::WHILE: return "WHILE";
+        case TokenType::FOR: return "FOR";
 
         case TokenType::TRUE: return "TRUE";
         case TokenType::FALSE: return "FALSE";
@@ -52,63 +53,34 @@ std::string tokenName(TokenType type) {
 
 int main() {
     std::string source =
-        "// 1. Basic Boolean & Equality Tests\n"
-        "let a = true;\n"
-        "let b = false;\n"
-        "if (a && !b) {\n"
-        "    print(\"Test 1 Passed: a && !b is true\");\n"
+        "// 1. Standard For Loop\n"
+        "print(\"--- Counting 1 to 5 ---\");\n"
+        "for (let i = 1; i <= 5; i = i + 1) {\n"
+        "    print(i);\n"
         "}\n"
         "\n"
-        "// 2. Inequality (!=)\n"
-        "let x = 10;\n"
-        "let y = 20;\n"
-        "if (x != y) {\n"
-        "    print(\"Test 2 Passed: 10 != 20\");\n"
+        "// 2. Accumulator Pattern\n"
+        "let total = 0;\n"
+        "for (let n = 1; n <= 4; n = n + 1) {\n"
+        "    total = total + n;\n"
         "}\n"
-        "\n"
-        "// 3. Short-Circuit OR Test\n"
-        "// If short-circuiting works, 'sideEffect' will NOT increment\n"
-        "let sideEffect = 0;\n"
-        "if (true || (sideEffect = sideEffect + 1)) {\n"
-        "    print(\"Test 3 Passed: Short-circuit OR triggered\");\n"
-        "}\n"
-        "print(\"Side effect after OR (expect 0):\");\n"
-        "print(sideEffect);\n"
-        "\n"
-        "// 4. Short-Circuit AND Test\n"
-        "// If left side is false, the right-hand assignment must NOT execute\n"
-        "if (false && (sideEffect = sideEffect + 1)) {\n"
-        "    print(\"Should not print\");\n"
-        "}\n"
-        "print(\"Side effect after AND (expect 0):\");\n"
-        "print(sideEffect);\n"
-        "\n"
-        "// 5. Complex Nested Logic\n"
-        "let age = 25;\n"
-        "let hasId = true;\n"
-        "let isBanned = false;\n"
-        "if ((age >= 21 && hasId) && !isBanned) {\n"
-        "    print(\"Test 5 Passed: Complex guard condition met\");\n"
-        "}\n";
+        "print(\"--- Sum of 1..4 (expect 10) ---\");\n"
+        "print(total);\n";
 
-    // 1. Lexing
     Lexer lexer(source);
     auto tokens = lexer.scanTokens();
 
-    // 2. Parsing
     Parser parser(tokens);
     auto program = parser.parse();
 
-    // 3. Semantic Analysis
     SemanticAnalyzer analyzer;
     if (!analyzer.analyze(*program)) {
         std::cerr << "Semantic check failed.\n";
         return 1;
     }
 
-    // 4. Interpretation
     std::cout << "==============================\n";
-    std::cout << "       LOGIC TEST OUTPUT      \n";
+    std::cout << "       FOR LOOP OUTPUT        \n";
     std::cout << "==============================\n";
     Interpreter interpreter;
     interpreter.interpret(*program);
