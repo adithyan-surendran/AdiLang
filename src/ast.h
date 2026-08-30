@@ -75,7 +75,24 @@ class Stmt
 public:
     virtual ~Stmt() = default;
 };
+class IfStatement : public Stmt
+{
+public:
+    std::unique_ptr<Expr> condition;
+    std::unique_ptr<Stmt> thenBranch;
+    std::unique_ptr<Stmt> elseBranch; // Can be nullptr if there is no 'else'
 
+    IfStatement(
+        std::unique_ptr<Expr> condition,
+        std::unique_ptr<Stmt> thenBranch,
+        std::unique_ptr<Stmt> elseBranch = nullptr
+    )
+        : condition(std::move(condition)),
+          thenBranch(std::move(thenBranch)),
+          elseBranch(std::move(elseBranch))
+    {
+    }
+};
 class VariableDeclaration : public Stmt
 {
 public:
@@ -123,6 +140,7 @@ public:
         : statements(std::move(stmts))
     {
     }
+
 };
 
 // ==========================================
@@ -132,6 +150,17 @@ class Program
 {
 public:
     std::vector<std::unique_ptr<Stmt>> statements;
+};
+class AssignExpr : public Expr
+{
+public:
+    std::string name;
+    std::unique_ptr<Expr> value;
+
+    AssignExpr(const std::string& name, std::unique_ptr<Expr> value)
+        : name(name), value(std::move(value))
+    {
+    }
 };
 
 #endif // ADILANG_AST_H

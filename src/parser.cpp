@@ -68,6 +68,16 @@ std::unique_ptr<Program> Parser::parse()
 }
 std::unique_ptr<Stmt> Parser::statement()
 {
+    if (match(TokenType::IF))
+    {
+        return ifStatement();
+    }
+
+    if (match(TokenType::LEFT_BRACE))
+    {
+        return block();
+    }
+
     if (match(TokenType::LET))
     {
         return variableDeclaration();
@@ -79,6 +89,40 @@ std::unique_ptr<Stmt> Parser::statement()
     }
 
     return expressionStatement();
+}
+
+std::unique_ptr<Stmt> Parser::ifStatement()
+{
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'.");
+    auto condition = expression();
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition.");
+
+    auto thenBranch = statement();
+    std::unique_ptr<Stmt> elseBranch = nullptr;
+
+    if (match(TokenType::ELSE))
+    {
+        elseBranch = statement();
+    }
+
+    return std::make_unique<IfStatement>(
+        std::move(condition),
+        std::move(thenBranch),
+        std::move(elseBranch)
+    );
+}
+
+std::unique_ptr<Stmt> Parser::block()
+{
+    std::vector<std::unique_ptr<Stmt>> statements;
+
+    while (!check(TokenType::RIGHT_BRACE) && !check(TokenType::END_OF_FILE))
+    {
+        statements.push_back(statement());
+    }
+
+    consume(TokenType::RIGHT_BRACE, "Expected '}' after block.");
+    return std::make_unique<BlockStatement>(std::move(statements));
 }
 std::unique_ptr<Stmt> Parser::variableDeclaration()
 {
@@ -106,7 +150,63 @@ std::unique_ptr<Stmt> Parser::variableDeclaration()
 }
 std::unique_ptr<Expr> Parser::expression()
 {
-    return addition();
+    return assignment();
+}
+
+std::unique_ptr<Expr> Parser::assignment()
+{
+    auto expr = equality();
+
+    if (match(TokenType::EQUAL))
+    {
+        Token equals = previous();
+        auto value = assignment(); // Right-associative (e.g. a = b = 5)
+
+        // Check if the left-hand side is a valid target (a variable)
+        if (auto varExpr = dynamic_cast<VariableExpr*>(expr.get()))
+        {
+            std::string name = varExpr->name;
+            return std::make_unique<AssignExpr>(name, std::move(value));
+        }
+
+        std::cerr << "Parser Error: Invalid assignment target at line " 
+                  << equals.line << "\n";
+    }
+
+    return expr;
+}
+
+std::unique_ptr<Expr> Parser::equality()
+{
+    auto expr = comparison();
+
+    while (match(TokenType::EQUAL_EQUAL))
+    {
+        TokenType op = previous().type;
+        auto right = comparison();
+        expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
+    }
+
+    return expr;
+}
+
+std::unique_ptr<Expr> Parser::comparison()
+{
+    auto expr = addition();
+
+    while (
+        match(TokenType::GREATER) ||
+        match(TokenType::GREATER_EQUAL) ||
+        match(TokenType::LESS) ||
+        match(TokenType::LESS_EQUAL)
+    )
+    {
+        TokenType op = previous().type;
+        auto right = addition();
+        expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
+    }
+
+    return expr;
 }
 std::unique_ptr<Expr> Parser::addition()
 {

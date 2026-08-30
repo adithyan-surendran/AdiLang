@@ -2,6 +2,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "semantic.h"
+#include "interpreter.h"
 
 std::string tokenName(TokenType type) {
 
@@ -59,11 +60,13 @@ std::string tokenName(TokenType type) {
 }
 
 int main() {
-    // Example testing variable scope and undeclared variable detection
     std::string source =
         "let x = 10;\n"
-        "let y = x + 5;\n"
-        "print(z);\n"; // Should trigger: Cannot use undeclared variable 'z'
+        "print(x);\n"
+        "x = 25;\n"
+        "print(x);\n"
+        "x = x + 15;\n"
+        "print(x);\n";
 
     Lexer lexer(source);
     auto tokens = lexer.scanTokens();
@@ -72,11 +75,10 @@ int main() {
     auto program = parser.parse();
 
     SemanticAnalyzer analyzer;
-    if (analyzer.analyze(*program)) {
-        std::cout << "✅ Semantic Analysis Passed!\n";
-    } else {
-        std::cout << "❌ Semantic Analysis Failed.\n";
-    }
+    if (!analyzer.analyze(*program)) return 1;
+
+    Interpreter interpreter;
+    interpreter.interpret(*program);
 
     return 0;
 }

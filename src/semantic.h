@@ -51,20 +51,34 @@ private:
         else if (auto printStmt = dynamic_cast<const PrintStatement*>(stmt)) {
             analyzeExpr(printStmt->expression.get());
         }
+        else if (auto ifStmt = dynamic_cast<const IfStatement*>(stmt)) {
+        analyzeExpr(ifStmt->condition.get());
+        analyzeStmt(ifStmt->thenBranch.get());
+        if (ifStmt->elseBranch) {
+            analyzeStmt(ifStmt->elseBranch.get());
+        }
+    }
     }
 
     void analyzeExpr(const Expr* expr) {
         if (!expr) return;
 
-        // Variable usage: x
-        if (auto varExpr = dynamic_cast<const VariableExpr*>(expr)) {
+        // 1. Variable Assignment: x = <expr>
+        if (auto assignExpr = dynamic_cast<const AssignExpr*>(expr)) {
+            if (!symbolTable.isDeclared(assignExpr->name)) {
+                error("Cannot assign to undeclared variable '" + assignExpr->name + "'.");
+            }
+            analyzeExpr(assignExpr->value.get());
+        }
+        // 2. Variable Usage: x
+        else if (auto varExpr = dynamic_cast<const VariableExpr*>(expr)) {
             if (varExpr->name != "true" && varExpr->name != "false") {
                 if (!symbolTable.isDeclared(varExpr->name)) {
                     error("Cannot use undeclared variable '" + varExpr->name + "'.");
                 }
             }
         }
-        // Binary expression: left + right
+        // 3. Binary Expression: left + right
         else if (auto binExpr = dynamic_cast<const BinaryExpr*>(expr)) {
             analyzeExpr(binExpr->left.get());
             analyzeExpr(binExpr->right.get());
@@ -72,5 +86,6 @@ private:
         // NumberExpr and StringExpr are base literals, always valid
     }
 };
+
 
 #endif // ADILANG_SEMANTIC_H
