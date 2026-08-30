@@ -160,32 +160,57 @@ std::unique_ptr<Expr> Parser::expression()
 
 std::unique_ptr<Expr> Parser::assignment()
 {
-    auto expr = equality();
+    auto expr = orExpression(); // Delegate down to 'or'
 
     if (match(TokenType::EQUAL))
     {
         Token equals = previous();
-        auto value = assignment(); // Right-associative (e.g. a = b = 5)
+        auto value = assignment();
 
-        // Check if the left-hand side is a valid target (a variable)
         if (auto varExpr = dynamic_cast<VariableExpr*>(expr.get()))
         {
             std::string name = varExpr->name;
             return std::make_unique<AssignExpr>(name, std::move(value));
         }
 
-        std::cerr << "Parser Error: Invalid assignment target at line " 
-                  << equals.line << "\n";
+        std::cerr << "Parser Error: Invalid assignment target at line " << equals.line << "\n";
     }
 
     return expr;
 }
 
+std::unique_ptr<Expr> Parser::orExpression()
+{
+    auto expr = andExpression();
+
+    while (match(TokenType::OR_OR))
+    {
+        TokenType op = previous().type;
+        auto right = andExpression();
+        expr = std::make_unique<LogicalExpr>(std::move(expr), op, std::move(right));
+    }
+
+    return expr;
+}
+
+std::unique_ptr<Expr> Parser::andExpression()
+{
+    auto expr = equality();
+
+    while (match(TokenType::AND_AND))
+    {
+        TokenType op = previous().type;
+        auto right = equality();
+        expr = std::make_unique<LogicalExpr>(std::move(expr), op, std::move(right));
+    }
+
+    return expr;
+}
 std::unique_ptr<Expr> Parser::equality()
 {
     auto expr = comparison();
 
-    while (match(TokenType::EQUAL_EQUAL))
+    while (match(TokenType::EQUAL_EQUAL) || match(TokenType::BANG_EQUAL))
     {
         TokenType op = previous().type;
         auto right = comparison();
@@ -237,25 +262,27 @@ std::unique_ptr<Expr> Parser::addition()
 }
 std::unique_ptr<Expr> Parser::multiplication()
 {
-    auto expr = primary();
+    auto expr = unary(); 
 
-    while (
-        match(TokenType::STAR) ||
-        match(TokenType::SLASH)
-    )
+    while (match(TokenType::STAR) || match(TokenType::SLASH))
     {
         TokenType op = previous().type;
-
-        auto right = primary();
-
-        expr = std::make_unique<BinaryExpr>(
-            std::move(expr),
-            op,
-            std::move(right)
-        );
+        auto right = unary();
+        expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
     }
 
     return expr;
+}
+std::unique_ptr<Expr> Parser::unary()
+{
+    if (match(TokenType::BANG) || match(TokenType::MINUS))
+    {
+        TokenType op = previous().type;
+        auto right = unary();
+        return std::make_unique<UnaryExpr>(op, std::move(right));
+    }
+
+    return primary();
 }
 std::unique_ptr<Expr> Parser::primary()
 {

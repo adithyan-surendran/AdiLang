@@ -87,7 +87,15 @@ private:
             analyzeExpr(binExpr->left.get());
             analyzeExpr(binExpr->right.get());
         }
-        // NumberExpr and StringExpr are base literals, always valid
+        // Logical expression: a && b, a || b
+        else if (auto logExpr = dynamic_cast<const LogicalExpr*>(expr)) {
+            analyzeExpr(logExpr->left.get());
+            analyzeExpr(logExpr->right.get());
+        }
+        // Unary expression: !a, -a
+        else if (auto unExpr = dynamic_cast<const UnaryExpr*>(expr)) {
+            analyzeExpr(unExpr->right.get());
+        }
     }
 };
 

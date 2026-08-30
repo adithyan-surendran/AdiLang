@@ -24,10 +24,13 @@ private:
     // Expressions (Precedence Hierarchy)
     std::unique_ptr<Expr> expression();
     std::unique_ptr<Expr> assignment();
+    std::unique_ptr<Expr> orExpression(); 
+    std::unique_ptr<Expr> andExpression();
     std::unique_ptr<Expr> equality();
     std::unique_ptr<Expr> comparison();
     std::unique_ptr<Expr> addition();
     std::unique_ptr<Expr> multiplication();
+    std::unique_ptr<Expr> unary();
     std::unique_ptr<Expr> primary(); 
 
     // Helper Token Methods

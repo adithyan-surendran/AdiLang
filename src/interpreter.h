@@ -72,6 +72,7 @@ private:
                 execute(ifStmt->elseBranch.get());
             }
         }
+        // 6. While Statement: while (<cond>) <body>
         else if (auto whileStmt = dynamic_cast<const WhileStatement*>(stmt)) {
             while (isTruthy(evaluate(whileStmt->condition.get()))) {
                 execute(whileStmt->body.get());
@@ -96,83 +97,118 @@ private:
 
     // --- Expression Evaluation ---
     Value evaluate(const Expr* expr) {
-    if (!expr) {
-        throw std::runtime_error("Null expression encountered during evaluation.");
-    }
+        if (!expr) {
+            throw std::runtime_error("Null expression encountered during evaluation.");
+        }
 
-    // 1. Variable Assignment: x = <expr>
-    if (auto assignExpr = dynamic_cast<const AssignExpr*>(expr)) {
-        Value val = evaluate(assignExpr->value.get());
-        environment->assign(assignExpr->name, val);
-        return val;
-    }
+        // 1. Variable Assignment: x = <expr>
+        if (auto assignExpr = dynamic_cast<const AssignExpr*>(expr)) {
+            Value val = evaluate(assignExpr->value.get());
+            environment->assign(assignExpr->name, val);
+            return val;
+        }
 
-    // 2. Literals
-    if (auto num = dynamic_cast<const NumberExpr*>(expr)) {
-        return num->value;
-    }
-    if (auto str = dynamic_cast<const StringExpr*>(expr)) {
-        return str->value;
-    }
+        // 2. Literals
+        if (auto num = dynamic_cast<const NumberExpr*>(expr)) {
+            return num->value;
+        }
+        if (auto str = dynamic_cast<const StringExpr*>(expr)) {
+            return str->value;
+        }
 
-    // 3. Variables / Boolean Literals
-    if (auto var = dynamic_cast<const VariableExpr*>(expr)) {
-        if (var->name == "true") return true;
-        if (var->name == "false") return false;
-        return environment->get(var->name);
-    }
+        // 3. Variables / Boolean Literals
+        if (auto var = dynamic_cast<const VariableExpr*>(expr)) {
+            if (var->name == "true") return true;
+            if (var->name == "false") return false;
+            return environment->get(var->name);
+        }
 
-    // 4. Binary Operations
-    if (auto bin = dynamic_cast<const BinaryExpr*>(expr)) {
-        Value left = evaluate(bin->left.get());
-        Value right = evaluate(bin->right.get());
+        // 4. Unary Operations: !a, -a
+        if (auto un = dynamic_cast<const UnaryExpr*>(expr)) {
+            Value right = evaluate(un->right.get());
 
-        // Numeric Operations & Comparisons
-        if (std::holds_alternative<double>(left) && std::holds_alternative<double>(right)) {
-            double l = std::get<double>(left);
-            double r = std::get<double>(right);
-
-            switch (bin->op) {
-                case TokenType::PLUS: return l + r;
-                case TokenType::MINUS: return l - r;
-                case TokenType::STAR: return l * r;
-                case TokenType::SLASH:
-                    if (r == 0.0) throw std::runtime_error("Division by zero.");
-                    return l / r;
-                case TokenType::GREATER: return l > r;
-                case TokenType::GREATER_EQUAL: return l >= r;
-                case TokenType::LESS: return l < r;
-                case TokenType::LESS_EQUAL: return l <= r;
-                case TokenType::EQUAL_EQUAL: return l == r;
-                default:
-                    throw std::runtime_error("Unsupported operator on numbers.");
+            if (un->op == TokenType::BANG) {
+                return !isTruthy(right);
+            }
+            if (un->op == TokenType::MINUS) {
+                if (std::holds_alternative<double>(right)) {
+                    return -std::get<double>(right);
+                }
+                throw std::runtime_error("Unary '-' operand must be a number.");
             }
         }
 
-        // String Concatenation
-        if (std::holds_alternative<std::string>(left) && std::holds_alternative<std::string>(right)) {
-            if (bin->op == TokenType::PLUS) {
-                return std::get<std::string>(left) + std::get<std::string>(right);
+        // 5. Logical Operations with Short-Circuiting: &&, ||
+        if (auto log = dynamic_cast<const LogicalExpr*>(expr)) {
+            Value left = evaluate(log->left.get());
+
+            if (log->op == TokenType::OR_OR) {
+                if (isTruthy(left)) return true;
+            } else if (log->op == TokenType::AND_AND) {
+                if (!isTruthy(left)) return false;
             }
-            if (bin->op == TokenType::EQUAL_EQUAL) {
-                return std::get<std::string>(left) == std::get<std::string>(right);
-            }
-            throw std::runtime_error("Only '+' and '==' are supported for strings.");
+
+            return isTruthy(evaluate(log->right.get()));
         }
 
-        // Boolean Comparisons
-        if (std::holds_alternative<bool>(left) && std::holds_alternative<bool>(right)) {
-            if (bin->op == TokenType::EQUAL_EQUAL) {
-                return std::get<bool>(left) == std::get<bool>(right);
+        // 6. Binary Operations
+        if (auto bin = dynamic_cast<const BinaryExpr*>(expr)) {
+            Value left = evaluate(bin->left.get());
+            Value right = evaluate(bin->right.get());
+
+            // Numeric Operations & Comparisons
+            if (std::holds_alternative<double>(left) && std::holds_alternative<double>(right)) {
+                double l = std::get<double>(left);
+                double r = std::get<double>(right);
+
+                switch (bin->op) {
+                    case TokenType::PLUS: return l + r;
+                    case TokenType::MINUS: return l - r;
+                    case TokenType::STAR: return l * r;
+                    case TokenType::SLASH:
+                        if (r == 0.0) throw std::runtime_error("Division by zero.");
+                        return l / r;
+                    case TokenType::GREATER: return l > r;
+                    case TokenType::GREATER_EQUAL: return l >= r;
+                    case TokenType::LESS: return l < r;
+                    case TokenType::LESS_EQUAL: return l <= r;
+                    case TokenType::EQUAL_EQUAL: return l == r;
+                    case TokenType::BANG_EQUAL: return l != r;
+                    default:
+                        throw std::runtime_error("Unsupported operator on numbers.");
+                }
             }
-            throw std::runtime_error("Only '==' is supported for booleans.");
+
+            // String Concatenation & Comparison
+            if (std::holds_alternative<std::string>(left) && std::holds_alternative<std::string>(right)) {
+                if (bin->op == TokenType::PLUS) {
+                    return std::get<std::string>(left) + std::get<std::string>(right);
+                }
+                if (bin->op == TokenType::EQUAL_EQUAL) {
+                    return std::get<std::string>(left) == std::get<std::string>(right);
+                }
+                if (bin->op == TokenType::BANG_EQUAL) {
+                    return std::get<std::string>(left) != std::get<std::string>(right);
+                }
+                throw std::runtime_error("Unsupported operator for strings.");
+            }
+
+            // Boolean Comparisons
+            if (std::holds_alternative<bool>(left) && std::holds_alternative<bool>(right)) {
+                if (bin->op == TokenType::EQUAL_EQUAL) {
+                    return std::get<bool>(left) == std::get<bool>(right);
+                }
+                if (bin->op == TokenType::BANG_EQUAL) {
+                    return std::get<bool>(left) != std::get<bool>(right);
+                }
+                throw std::runtime_error("Unsupported operator for booleans.");
+            }
+
+            throw std::runtime_error("Type error in binary operation.");
         }
 
-        throw std::runtime_error("Type error in binary operation.");
+        throw std::runtime_error("Unknown expression node.");
     }
-
-    throw std::runtime_error("Unknown expression node.");
-}
 };
 
 #endif // ADILANG_INTERPRETER_H

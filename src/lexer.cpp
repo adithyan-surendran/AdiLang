@@ -184,6 +184,29 @@ void Lexer::scanToken() {
         case '\n':
             // Ignore whitespace
             break;
+        case '!':
+            if (match('=')) {
+                addToken(TokenType::BANG_EQUAL);
+            } else {
+                addToken(TokenType::BANG);
+            }
+            break;
+
+        case '&':
+            if (match('&')) {
+                addToken(TokenType::AND_AND);
+            } else {
+                std::cerr << "Error at line " << line << ": Unexpected character '&'\n";
+            }
+            break;
+
+        case '|':
+            if (match('|')) {
+                addToken(TokenType::OR_OR);
+            } else {
+                std::cerr << "Error at line " << line << ": Unexpected character '|'\n";
+            }
+            break;
 
         default:
 

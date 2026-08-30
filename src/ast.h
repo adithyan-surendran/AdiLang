@@ -20,7 +20,7 @@ class NumberExpr : public Expr
 public:
     double value;
 
-    NumberExpr(double value)
+    explicit NumberExpr(double value)
         : value(value)
     {
     }
@@ -31,7 +31,7 @@ class StringExpr : public Expr
 public:
     std::string value;
 
-    StringExpr(const std::string& value)
+    explicit StringExpr(const std::string& value)
         : value(value)
     {
     }
@@ -42,8 +42,45 @@ class VariableExpr : public Expr
 public:
     std::string name;
 
-    VariableExpr(const std::string& name)
+    explicit VariableExpr(const std::string& name)
         : name(name)
+    {
+    }
+};
+
+class AssignExpr : public Expr
+{
+public:
+    std::string name;
+    std::unique_ptr<Expr> value;
+
+    AssignExpr(const std::string& name, std::unique_ptr<Expr> value)
+        : name(name), value(std::move(value))
+    {
+    }
+};
+
+class UnaryExpr : public Expr
+{
+public:
+    TokenType op;
+    std::unique_ptr<Expr> right;
+
+    UnaryExpr(TokenType op, std::unique_ptr<Expr> right)
+        : op(op), right(std::move(right))
+    {
+    }
+};
+
+class LogicalExpr : public Expr
+{
+public:
+    std::unique_ptr<Expr> left;
+    TokenType op;
+    std::unique_ptr<Expr> right;
+
+    LogicalExpr(std::unique_ptr<Expr> left, TokenType op, std::unique_ptr<Expr> right)
+        : left(std::move(left)), op(op), right(std::move(right))
     {
     }
 };
@@ -75,12 +112,13 @@ class Stmt
 public:
     virtual ~Stmt() = default;
 };
+
 class IfStatement : public Stmt
 {
 public:
     std::unique_ptr<Expr> condition;
     std::unique_ptr<Stmt> thenBranch;
-    std::unique_ptr<Stmt> elseBranch; // Can be nullptr if there is no 'else'
+    std::unique_ptr<Stmt> elseBranch;
 
     IfStatement(
         std::unique_ptr<Expr> condition,
@@ -93,6 +131,19 @@ public:
     {
     }
 };
+
+class WhileStatement : public Stmt
+{
+public:
+    std::unique_ptr<Expr> condition;
+    std::unique_ptr<Stmt> body;
+
+    WhileStatement(std::unique_ptr<Expr> condition, std::unique_ptr<Stmt> body)
+        : condition(std::move(condition)), body(std::move(body))
+    {
+    }
+};
+
 class VariableDeclaration : public Stmt
 {
 public:
@@ -140,19 +191,8 @@ public:
         : statements(std::move(stmts))
     {
     }
-
 };
-class WhileStatement : public Stmt
-{
-public:
-    std::unique_ptr<Expr> condition;
-    std::unique_ptr<Stmt> body;
 
-    WhileStatement(std::unique_ptr<Expr> condition, std::unique_ptr<Stmt> body)
-        : condition(std::move(condition)), body(std::move(body))
-    {
-    }
-};
 // ==========================================
 // 3. Root Node: Program
 // ==========================================
@@ -160,17 +200,6 @@ class Program
 {
 public:
     std::vector<std::unique_ptr<Stmt>> statements;
-};
-class AssignExpr : public Expr
-{
-public:
-    std::string name;
-    std::unique_ptr<Expr> value;
-
-    AssignExpr(const std::string& name, std::unique_ptr<Expr> value)
-        : name(name), value(std::move(value))
-    {
-    }
 };
 
 #endif // ADILANG_AST_H

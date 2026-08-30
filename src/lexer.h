@@ -39,6 +39,11 @@ enum class TokenType {
     LEFT_BRACE,
     RIGHT_BRACE,
     SEMICOLON,
+    // Logical Operators
+    AND_AND,      // &&
+    OR_OR,        // ||
+    BANG,         // !
+    BANG_EQUAL,   // !=
 
     END_OF_FILE
 };
