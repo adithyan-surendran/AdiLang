@@ -16,9 +16,10 @@ std::vector<Token> Lexer::scanTokens() {
 
     tokens.push_back({
         TokenType::END_OF_FILE,
-        ""
+        "",
+        line,
+        column
     });
-
     return tokens;
 }
 

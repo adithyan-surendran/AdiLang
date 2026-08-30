@@ -4,7 +4,11 @@
 #include "lexer.h"
 #include <memory>
 #include <string>
+#include <vector>
 
+// ==========================================
+// 1. Base Expression Node & Derived Classes
+// ==========================================
 class Expr
 {
 public:
@@ -63,4 +67,71 @@ public:
     }
 };
 
-#endif
+// ==========================================
+// 2. Base Statement Node & Derived Classes
+// ==========================================
+class Stmt
+{
+public:
+    virtual ~Stmt() = default;
+};
+
+class VariableDeclaration : public Stmt
+{
+public:
+    std::string name;
+    std::unique_ptr<Expr> initializer;
+
+    VariableDeclaration(
+        const std::string& name,
+        std::unique_ptr<Expr> initializer
+    )
+        : name(name),
+          initializer(std::move(initializer))
+    {
+    }
+};
+
+class PrintStatement : public Stmt
+{
+public:
+    std::unique_ptr<Expr> expression;
+
+    explicit PrintStatement(std::unique_ptr<Expr> expression)
+        : expression(std::move(expression))
+    {
+    }
+};
+
+class ExpressionStatement : public Stmt
+{
+public:
+    std::unique_ptr<Expr> expression;
+
+    explicit ExpressionStatement(std::unique_ptr<Expr> expression)
+        : expression(std::move(expression))
+    {
+    }
+};
+
+class BlockStatement : public Stmt
+{
+public:
+    std::vector<std::unique_ptr<Stmt>> statements;
+
+    explicit BlockStatement(std::vector<std::unique_ptr<Stmt>> stmts)
+        : statements(std::move(stmts))
+    {
+    }
+};
+
+// ==========================================
+// 3. Root Node: Program
+// ==========================================
+class Program
+{
+public:
+    std::vector<std::unique_ptr<Stmt>> statements;
+};
+
+#endif // ADILANG_AST_H

@@ -51,32 +51,38 @@ Token Parser::consume(
 
     return peek();
 }
-void Parser::parse()
+std::unique_ptr<Program> Parser::parse()
 {
+    auto program = std::make_unique<Program>();
+
     while (!check(TokenType::END_OF_FILE))
     {
-        statement();
+        auto stmt = statement();
+        if (stmt)
+        {
+            program->statements.push_back(std::move(stmt));
+        }
     }
+
+    return program;
 }
-void Parser::statement()
+std::unique_ptr<Stmt> Parser::statement()
 {
     if (match(TokenType::LET))
     {
-        variableDeclaration();
-        return;
+        return variableDeclaration();
     }
 
     if (match(TokenType::PRINT))
     {
-        printStatement();
-        return;
+        return printStatement();
     }
 
-    expressionStatement();
+    return expressionStatement();
 }
-void Parser::variableDeclaration()
+std::unique_ptr<Stmt> Parser::variableDeclaration()
 {
-    consume(
+    Token nameToken = consume(
         TokenType::IDENTIFIER,
         "Expected variable name"
     );
@@ -86,11 +92,16 @@ void Parser::variableDeclaration()
         "Expected '=' after variable name"
     );
 
-    expression();
+    auto initializer = expression();
 
     consume(
         TokenType::SEMICOLON,
         "Expected ';' after variable declaration"
+    );
+
+    return std::make_unique<VariableDeclaration>(
+        nameToken.lexeme,
+        std::move(initializer)
     );
 }
 std::unique_ptr<Expr> Parser::expression()
@@ -192,14 +203,14 @@ std::unique_ptr<Expr> Parser::primary()
 
     return nullptr;
 }
-void Parser::printStatement()
+std::unique_ptr<Stmt> Parser::printStatement()
 {
     consume(
         TokenType::LEFT_PAREN,
         "Expected '(' after print"
     );
 
-    expression();
+    auto expr = expression();
 
     consume(
         TokenType::RIGHT_PAREN,
@@ -210,13 +221,17 @@ void Parser::printStatement()
         TokenType::SEMICOLON,
         "Expected ';' after print statement"
     );
+
+    return std::make_unique<PrintStatement>(std::move(expr));
 }
-void Parser::expressionStatement()
+std::unique_ptr<Stmt> Parser::expressionStatement()
 {
-    expression();
+    auto expr = expression();
 
     consume(
         TokenType::SEMICOLON,
         "Expected ';' after expression"
     );
-}   
+
+    return std::make_unique<ExpressionStatement>(std::move(expr));
+}
