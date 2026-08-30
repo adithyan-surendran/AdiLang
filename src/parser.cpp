@@ -83,6 +83,14 @@ std::unique_ptr<Stmt> Parser::statement()
         return forStatement();
     }
 
+    if (match(TokenType::BREAK))
+    {
+        return breakStatement();
+    }   
+    if (match(TokenType::CONTINUE))
+    {
+        return continueStatement();
+    }
     if (match(TokenType::LEFT_BRACE))
     {
         return block();
@@ -438,4 +446,15 @@ std::unique_ptr<Stmt> Parser::forStatement()
     }
 
     return body;
+}
+std::unique_ptr<Stmt> Parser::breakStatement()
+{
+    consume(TokenType::SEMICOLON, "Expected ';' after 'break'.");
+    return std::make_unique<BreakStatement>();
+}
+
+std::unique_ptr<Stmt> Parser::continueStatement()
+{
+    consume(TokenType::SEMICOLON, "Expected ';' after 'continue'.");
+    return std::make_unique<ContinueStatement>();
 }

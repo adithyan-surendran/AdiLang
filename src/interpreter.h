@@ -8,6 +8,10 @@
 #include <memory>
 #include <vector>
 
+// Sentinel jump signals for interpreter unwinding
+struct BreakJump {};
+struct ContinueJump {};
+
 // Helper to determine truthiness in AdiLang (defined BEFORE Interpreter class)
 inline bool isTruthy(const Value& val) {
     if (std::holds_alternative<bool>(val)) {
@@ -75,8 +79,22 @@ private:
         // 6. While Statement: while (<cond>) <body>
         else if (auto whileStmt = dynamic_cast<const WhileStatement*>(stmt)) {
             while (isTruthy(evaluate(whileStmt->condition.get()))) {
-                execute(whileStmt->body.get());
+                try {
+                    execute(whileStmt->body.get());
+                } catch (const ContinueJump&) {
+                    continue; // Jump to next loop iteration
+                } catch (const BreakJump&) {
+                    break;    // Exit loop completely
+                }
             }
+        }
+        // 7. Break Statement
+        else if (dynamic_cast<const BreakStatement*>(stmt)) {
+            throw BreakJump{};
+        }
+        // 8. Continue Statement
+        else if (dynamic_cast<const ContinueStatement*>(stmt)) {
+            throw ContinueJump{};
         }
     }
 

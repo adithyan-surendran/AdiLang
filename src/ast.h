@@ -144,6 +144,18 @@ public:
     }
 };
 
+class BreakStatement : public Stmt
+{
+public:
+    BreakStatement() = default;
+};
+
+class ContinueStatement : public Stmt
+{
+public:
+    ContinueStatement() = default;
+};
+
 class VariableDeclaration : public Stmt
 {
 public:

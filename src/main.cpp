@@ -5,9 +5,7 @@
 #include "interpreter.h"
 
 std::string tokenName(TokenType type) {
-
     switch (type) {
-
         case TokenType::LET: return "LET";
         case TokenType::IDENTIFIER: return "IDENTIFIER";
         case TokenType::NUMBER: return "NUMBER";
@@ -27,25 +25,27 @@ std::string tokenName(TokenType type) {
 
         case TokenType::GREATER: return "GREATER";
         case TokenType::LESS: return "LESS";
-        case TokenType::GREATER_EQUAL:return "GREATER_EQUAL";
-        case TokenType::LESS_EQUAL:return "LESS_EQUAL";
+        case TokenType::GREATER_EQUAL: return "GREATER_EQUAL";
+        case TokenType::LESS_EQUAL: return "LESS_EQUAL";
 
         case TokenType::PRINT: return "PRINT";
         case TokenType::IF: return "IF";
         case TokenType::ELSE: return "ELSE";
         case TokenType::WHILE: return "WHILE";
         case TokenType::FOR: return "FOR";
+        case TokenType::BREAK: return "BREAK";
+        case TokenType::CONTINUE: return "CONTINUE";
 
         case TokenType::TRUE: return "TRUE";
         case TokenType::FALSE: return "FALSE";
 
-        case TokenType::LEFT_PAREN:return "LEFT_PAREN";
-        case TokenType::RIGHT_PAREN:return "RIGHT_PAREN";
+        case TokenType::LEFT_PAREN: return "LEFT_PAREN";
+        case TokenType::RIGHT_PAREN: return "RIGHT_PAREN";
         case TokenType::LEFT_BRACE: return "LEFT_BRACE";
-        case TokenType::RIGHT_BRACE:return "RIGHT_BRACE";
-        case TokenType::SEMICOLON:return "SEMICOLON";
+        case TokenType::RIGHT_BRACE: return "RIGHT_BRACE";
+        case TokenType::SEMICOLON: return "SEMICOLON";
 
-        case TokenType::END_OF_FILE:return "EOF";
+        case TokenType::END_OF_FILE: return "EOF";
     }
 
     return "UNKNOWN";
@@ -53,19 +53,36 @@ std::string tokenName(TokenType type) {
 
 int main() {
     std::string source =
-        "// 1. Standard For Loop\n"
-        "print(\"--- Counting 1 to 5 ---\");\n"
-        "for (let i = 1; i <= 5; i = i + 1) {\n"
-        "    print(i);\n"
+        "// 1. While Loop Break Test\n"
+        "print(\"=== 1. While Loop Break (Stop at 3) ===\");\n"
+        "let a = 1;\n"
+        "while (a <= 10) {\n"
+        "    if (a == 4) {\n"
+        "        break;\n"
+        "    }\n"
+        "    print(a);\n"
+        "    a = a + 1;\n"
         "}\n"
         "\n"
-        "// 2. Accumulator Pattern\n"
-        "let total = 0;\n"
-        "for (let n = 1; n <= 4; n = n + 1) {\n"
-        "    total = total + n;\n"
+        "// 2. While Loop Continue Test\n"
+        "print(\"=== 2. While Loop Continue (Skip 2) ===\");\n"
+        "let b = 0;\n"
+        "while (b < 4) {\n"
+        "    b = b + 1;\n"
+        "    if (b == 2) {\n"
+        "        continue;\n"
+        "    }\n"
+        "    print(b);\n"
         "}\n"
-        "print(\"--- Sum of 1..4 (expect 10) ---\");\n"
-        "print(total);\n";
+        "\n"
+        "// 3. For Loop Break Test\n"
+        "print(\"=== 3. For Loop Break (Stop at 2) ===\");\n"
+        "for (let i = 1; i <= 5; i = i + 1) {\n"
+        "    if (i == 3) {\n"
+        "        break;\n"
+        "    }\n"
+        "    print(i);\n"
+        "}\n";
 
     Lexer lexer(source);
     auto tokens = lexer.scanTokens();
@@ -80,7 +97,7 @@ int main() {
     }
 
     std::cout << "==============================\n";
-    std::cout << "       FOR LOOP OUTPUT        \n";
+    std::cout << "    CONTROL FLOW TEST SUITE   \n";
     std::cout << "==============================\n";
     Interpreter interpreter;
     interpreter.interpret(*program);

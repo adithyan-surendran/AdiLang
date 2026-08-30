@@ -163,6 +163,7 @@ void Lexer::scanToken() {
             }
 
             break;
+        
 
         case '<':
 
@@ -301,6 +302,12 @@ void Lexer::identifier() {
     else if (text == "for")          
         addToken(TokenType::FOR);
 
+    else if (text == "break")          
+        addToken(TokenType::BREAK);
+
+    else if (text == "continue")          
+        addToken(TokenType::CONTINUE);
+        
     else if (text == "true")
         addToken(TokenType::TRUE);
 

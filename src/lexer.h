@@ -17,6 +17,8 @@ enum class TokenType {
     ELSE,
     WHILE,
     FOR,
+    BREAK,
+    CONTINUE,
     TRUE,
     FALSE,
 
