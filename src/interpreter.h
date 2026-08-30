@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <memory>
 #include <vector>
+#include <cmath>
 
 // Sentinel jump signals for interpreter unwinding
 struct BreakJump {};
@@ -39,7 +40,7 @@ public:
                 execute(stmt.get());
             }
         } catch (const std::runtime_error& error) {
-            std::cerr << "Runtime Error: " << error.what() << "\n";
+            std::cerr << "CRITICAL RUNTIME ERROR: " << error.what() << "\n";
         }
     }
 
@@ -95,6 +96,9 @@ private:
         // 8. Continue Statement
         else if (dynamic_cast<const ContinueStatement*>(stmt)) {
             throw ContinueJump{};
+        }
+        else if (auto exprStmt = dynamic_cast<const ExpressionStatement*>(stmt)) {
+            evaluate(exprStmt->expression.get());
         }
     }
 
@@ -186,6 +190,9 @@ private:
                     case TokenType::SLASH:
                         if (r == 0.0) throw std::runtime_error("Division by zero.");
                         return l / r;
+                    case TokenType::PERCENT:
+                        if (r == 0.0) throw std::runtime_error("Modulo by zero.");
+                        return std::fmod(l, r);
                     case TokenType::GREATER: return l > r;
                     case TokenType::GREATER_EQUAL: return l >= r;
                     case TokenType::LESS: return l < r;

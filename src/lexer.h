@@ -27,8 +27,14 @@ enum class TokenType {
     MINUS,
     STAR,
     SLASH,
+    PERCENT,
 
     EQUAL,
+    PLUS_EQUAL,
+    MINUS_EQUAL,
+    STAR_EQUAL,
+    SLASH_EQUAL,
+    PERCENT_EQUAL,
     EQUAL_EQUAL,
 
     GREATER,
@@ -74,6 +80,7 @@ private:
     void number();
     void string();
 
+    bool isAtEnd() const;
     char advance();
     char peek();
     char peekNext();

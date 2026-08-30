@@ -173,25 +173,41 @@ std::unique_ptr<Expr> Parser::expression()
 
 std::unique_ptr<Expr> Parser::assignment()
 {
-    auto expr = orExpression(); // Delegate down to 'or'
+    auto expr = orExpression();
 
-    if (match(TokenType::EQUAL))
+    if (match(TokenType::EQUAL) || match(TokenType::PLUS_EQUAL) ||
+        match(TokenType::MINUS_EQUAL) || match(TokenType::STAR_EQUAL) ||
+        match(TokenType::SLASH_EQUAL) || match(TokenType::PERCENT_EQUAL))
     {
-        Token equals = previous();
+        Token opToken = previous();
         auto value = assignment();
 
         if (auto varExpr = dynamic_cast<VariableExpr*>(expr.get()))
         {
             std::string name = varExpr->name;
-            return std::make_unique<AssignExpr>(name, std::move(value));
+
+            if (opToken.type == TokenType::EQUAL) {
+                return std::make_unique<AssignExpr>(name, std::move(value));
+            }
+
+            TokenType binaryOp;
+            if (opToken.type == TokenType::PLUS_EQUAL) binaryOp = TokenType::PLUS;
+            else if (opToken.type == TokenType::MINUS_EQUAL) binaryOp = TokenType::MINUS;
+            else if (opToken.type == TokenType::STAR_EQUAL) binaryOp = TokenType::STAR;
+            else if (opToken.type == TokenType::SLASH_EQUAL) binaryOp = TokenType::SLASH;
+            else binaryOp = TokenType::PERCENT;
+
+            auto varNode = std::make_unique<VariableExpr>(name);
+            auto desugaredBinary = std::make_unique<BinaryExpr>(std::move(varNode), binaryOp, std::move(value));
+
+            return std::make_unique<AssignExpr>(name, std::move(desugaredBinary));
         }
 
-        std::cerr << "Parser Error: Invalid assignment target at line " << equals.line << "\n";
+        std::cerr << "Parser Error: Invalid assignment target at line " << opToken.line << "\n";
     }
 
     return expr;
 }
-
 std::unique_ptr<Expr> Parser::orExpression()
 {
     auto expr = andExpression();
@@ -277,7 +293,7 @@ std::unique_ptr<Expr> Parser::multiplication()
 {
     auto expr = unary(); 
 
-    while (match(TokenType::STAR) || match(TokenType::SLASH))
+    while (match(TokenType::STAR) || match(TokenType::SLASH) || match(TokenType::PERCENT))
     {
         TokenType op = previous().type;
         auto right = unary();

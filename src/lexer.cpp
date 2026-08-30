@@ -115,33 +115,29 @@ void Lexer::scanToken() {
             break;
 
         case '+':
-            addToken(TokenType::PLUS);
+            addToken(match('=') ? TokenType::PLUS_EQUAL : TokenType::PLUS);
             break;
 
         case '-':
-            addToken(TokenType::MINUS);
+            addToken(match('=') ? TokenType::MINUS_EQUAL : TokenType::MINUS);
             break;
 
         case '*':
-            addToken(TokenType::STAR);
+            addToken(match('=') ? TokenType::STAR_EQUAL : TokenType::STAR);
             break;
 
         case '/':
-
-            // Comment
-            if (match('/')) {
-
-                while (peek() != '\n' &&
-                       peek() != '\0') {
-
-                    advance();
-                }
-
+            if (match('=')) {
+                addToken(TokenType::SLASH_EQUAL);
+            } else if (match('/')) {
+                while (peek() != '\n' && !isAtEnd()) advance();
             } else {
-
                 addToken(TokenType::SLASH);
             }
+            break;
 
+        case '%':
+            addToken(match('=') ? TokenType::PERCENT_EQUAL : TokenType::PERCENT);
             break;
 
         case '=':
@@ -316,4 +312,7 @@ void Lexer::identifier() {
 
     else
         addToken(TokenType::IDENTIFIER);
+}
+bool Lexer::isAtEnd() const {
+    return current >= source.length();
 }

@@ -15,8 +15,14 @@ std::string tokenName(TokenType type) {
         case TokenType::MINUS: return "MINUS";
         case TokenType::STAR: return "STAR";
         case TokenType::SLASH: return "SLASH";
+        case TokenType::PERCENT: return "PERCENT";
 
         case TokenType::EQUAL: return "EQUAL";
+        case TokenType::PLUS_EQUAL: return "PLUS_EQUAL";
+        case TokenType::MINUS_EQUAL: return "MINUS_EQUAL";
+        case TokenType::STAR_EQUAL: return "STAR_EQUAL";
+        case TokenType::SLASH_EQUAL: return "SLASH_EQUAL";
+        case TokenType::PERCENT_EQUAL: return "PERCENT_EQUAL";
         case TokenType::EQUAL_EQUAL: return "EQUAL_EQUAL";
         case TokenType::BANG: return "BANG";
         case TokenType::BANG_EQUAL: return "BANG_EQUAL";
@@ -53,36 +59,37 @@ std::string tokenName(TokenType type) {
 
 int main() {
     std::string source =
-        "// 1. While Loop Break Test\n"
-        "print(\"=== 1. While Loop Break (Stop at 3) ===\");\n"
-        "let a = 1;\n"
-        "while (a <= 10) {\n"
-        "    if (a == 4) {\n"
-        "        break;\n"
-        "    }\n"
-        "    print(a);\n"
-        "    a = a + 1;\n"
-        "}\n"
+        "print(\"=== 1. Modulo & Percent Equal Test ===\");\n"
+        "let val = 17;\n"
+        "val %= 5;\n"
+        "print(\"17 %= 5 (expect 2):\");\n"
+        "print(val);\n"
         "\n"
-        "// 2. While Loop Continue Test\n"
-        "print(\"=== 2. While Loop Continue (Skip 2) ===\");\n"
-        "let b = 0;\n"
-        "while (b < 4) {\n"
-        "    b = b + 1;\n"
-        "    if (b == 2) {\n"
+        "print(\"=== 2. Compound Assignments Test ===\");\n"
+        "let x = 10;\n"
+        "x += 5;  // 15\n"
+        "x -= 3;  // 12\n"
+        "x *= 2;  // 24\n"
+        "x /= 4;  // 6\n"
+        "print(\"Result after compound math (expect 6):\");\n"
+        "print(x);\n"
+        "\n"
+        "print(\"=== 3. Loop Control & Accumulator Test ===\");\n"
+        "let sum = 0;\n"
+        "let i = 1;\n"
+        "while (i <= 6) {\n"
+        "    if (i == 3) {\n"
+        "        i += 1;\n"
         "        continue;\n"
         "    }\n"
-        "    print(b);\n"
-        "}\n"
-        "\n"
-        "// 3. For Loop Break Test\n"
-        "print(\"=== 3. For Loop Break (Stop at 2) ===\");\n"
-        "for (let i = 1; i <= 5; i = i + 1) {\n"
-        "    if (i == 3) {\n"
+        "    if (i == 6) {\n"
         "        break;\n"
         "    }\n"
-        "    print(i);\n"
-        "}\n";
+        "    sum += i;\n"
+        "    i += 1;\n"
+        "}\n"
+        "print(\"Sum of 1..5 skipping 3 (expect 1 + 2 + 4 + 5 = 12):\");\n"
+        "print(sum);\n";
 
     Lexer lexer(source);
     auto tokens = lexer.scanTokens();
@@ -97,7 +104,7 @@ int main() {
     }
 
     std::cout << "==============================\n";
-    std::cout << "    CONTROL FLOW TEST SUITE   \n";
+    std::cout << "       ADILANG v0.6.5 RUN     \n";
     std::cout << "==============================\n";
     Interpreter interpreter;
     interpreter.interpret(*program);
