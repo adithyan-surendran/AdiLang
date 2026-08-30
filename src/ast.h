@@ -103,6 +103,35 @@ public:
     {
     }
 };
+// --- Array Literal Expression: [element1, element2, ...] ---
+class ArrayExpr : public Expr {
+public:
+    std::vector<std::unique_ptr<Expr>> elements;
+
+    explicit ArrayExpr(std::vector<std::unique_ptr<Expr>> elements)
+        : elements(std::move(elements)) {}
+};
+
+// --- Index Get Expression: target[index] ---
+class IndexGetExpr : public Expr {
+public:
+    std::unique_ptr<Expr> target;
+    std::unique_ptr<Expr> index;
+
+    IndexGetExpr(std::unique_ptr<Expr> target, std::unique_ptr<Expr> index)
+        : target(std::move(target)), index(std::move(index)) {}
+};
+
+// --- Index Set Expression: target[index] = value ---
+class IndexSetExpr : public Expr {
+public:
+    std::unique_ptr<Expr> target;
+    std::unique_ptr<Expr> index;
+    std::unique_ptr<Expr> value;
+
+    IndexSetExpr(std::unique_ptr<Expr> target, std::unique_ptr<Expr> index, std::unique_ptr<Expr> value)
+        : target(std::move(target)), index(std::move(index)), value(std::move(value)) {}
+};
 
 // ==========================================
 // 2. Base Statement Node & Derived Classes

@@ -8,19 +8,40 @@
 #include <stdexcept>
 #include <iostream>
 
-// Forward declaration of AdiFunction
+// Forward declaration
 struct AdiFunction;
+struct AdiArray;
 
 // Represents any dynamic runtime value in AdiLang (including user functions)
-using Value = std::variant<double, std::string, bool, std::shared_ptr<AdiFunction>>;
+using Value = std::variant<
+    double, 
+    std::string, 
+    bool, 
+    std::shared_ptr<AdiFunction>,
+    std::shared_ptr<AdiArray>
+    >;
+
+// Runtime representation of an AdiLang array
+struct AdiArray {
+    std::vector<Value> elements;
+    explicit AdiArray(std::vector<Value> elements) : elements(std::move(elements)) {}
+};
 
 // Helper to print a Value to an output stream
 inline void printValue(const Value& val) {
     std::visit([](const auto& v) {
-        if constexpr (std::is_same_v<std::decay_t<decltype(v)>, bool>) {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, bool>) {
             std::cout << (v ? "true" : "false");
-        } else if constexpr (std::is_same_v<std::decay_t<decltype(v)>, std::shared_ptr<AdiFunction>>) {
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<AdiFunction>>) {
             std::cout << "<fn>";
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<AdiArray>>) {
+            std::cout << "[";
+            for (size_t i = 0; i < v->elements.size(); ++i) {
+                printValue(v->elements[i]);
+                if (i + 1 < v->elements.size()) std::cout << ", ";
+            }
+            std::cout << "]";
         } else {
             std::cout << v;
         }

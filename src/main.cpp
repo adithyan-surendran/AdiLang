@@ -51,6 +51,8 @@ std::string tokenName(TokenType type) {
         case TokenType::RIGHT_PAREN: return "RIGHT_PAREN";
         case TokenType::LEFT_BRACE: return "LEFT_BRACE";
         case TokenType::RIGHT_BRACE: return "RIGHT_BRACE";
+        case TokenType::LEFT_BRACKET: return "LEFT_BRACKET";
+        case TokenType::RIGHT_BRACKET: return "RIGHT_BRACKET";
         case TokenType::COMMA: return "COMMA";
         case TokenType::SEMICOLON: return "SEMICOLON";
 
@@ -62,24 +64,35 @@ std::string tokenName(TokenType type) {
 
 int main() {
     std::string source =
-        "print(\"=== v0.7.0 User-Defined Functions Test ===\");\n"
+        "print(\"=== v0.8.0 Arrays & Collections Test ===\");\n"
         "\n"
-        "fn add(a, b) {\n"
-        "    return a + b;\n"
-        "}\n"
+        "// 1. Define an array literal\n"
+        "let numbers = [10, 20, 30, 40, 50];\n"
+        "print(\"Initial array:\");\n"
+        "print(numbers);\n"
         "\n"
-        "fn factorial(n) {\n"
-        "    if (n <= 1) {\n"
-        "        return 1;\n"
-        "    }\n"
-        "    return n * factorial(n - 1);\n"
-        "}\n"
+        "// 2. Index access\n"
+        "print(\"Element at index 0:\");\n"
+        "print(numbers[0]);\n"
         "\n"
-        "print(\"Result of add(10, 32):\");\n"
-        "print(add(10, 32));\n"
+        "print(\"Element at index 2:\");\n"
+        "print(numbers[2]);\n"
         "\n"
-        "print(\"Result of factorial(5) (expect 120):\");\n"
-        "print(factorial(5));\n";
+        "// 3. Item mutation (assignment by index)\n"
+        "numbers[1] = 99;\n"
+        "print(\"Array after modifying index 1 to 99:\");\n"
+        "print(numbers);\n"
+        "\n"
+        "// 4. Using variables for indices and expressions inside arrays\n"
+        "let i = 3;\n"
+        "print(\n"
+        "    numbers[i]\n"
+        ");\n"
+        "\n"
+        "// 5. Nested / Mixed arrays\n"
+        "let mixed = [\"hello\", 3.14, true];\n"
+        "print(\"Mixed type array:\");\n"
+        "print(mixed);\n";
 
     Lexer lexer(source);
     auto tokens = lexer.scanTokens();
@@ -94,7 +107,7 @@ int main() {
     }
 
     std::cout << "==============================\n";
-    std::cout << "       ADILANG v0.7.0 RUN     \n";
+    std::cout << "       ADILANG v0.8.0 RUN     \n";
     std::cout << "==============================\n";
     Interpreter interpreter;
     interpreter.interpret(*program);

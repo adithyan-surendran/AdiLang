@@ -110,6 +110,23 @@ private:
             analyzeExpr(binExpr->left.get());
             analyzeExpr(binExpr->right.get());
         }
+        // --- Added: Array Literal Expression ---
+        else if (auto arrExpr = dynamic_cast<const ArrayExpr*>(expr)) {
+            for (const auto& el : arrExpr->elements) {
+                analyzeExpr(el.get());
+            }
+        }
+        // --- Added: Index Get Expression (arr[i]) ---
+        else if (auto indexGet = dynamic_cast<const IndexGetExpr*>(expr)) {
+            analyzeExpr(indexGet->target.get());
+            analyzeExpr(indexGet->index.get());
+        }
+        // --- Added: Index Set Expression (arr[i] = val) ---
+        else if (auto indexSet = dynamic_cast<const IndexSetExpr*>(expr)) {
+            analyzeExpr(indexSet->target.get());
+            analyzeExpr(indexSet->index.get());
+            analyzeExpr(indexSet->value.get());
+        }
     }
 };
 

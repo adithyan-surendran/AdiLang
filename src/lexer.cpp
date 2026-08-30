@@ -110,6 +110,14 @@ void Lexer::scanToken() {
             addToken(TokenType::RIGHT_BRACE);
             break;
 
+        case '[':
+            addToken(TokenType::LEFT_BRACKET);
+            break;
+            
+        case ']':
+            addToken(TokenType::RIGHT_BRACKET);
+            break;
+
         case ',':
             addToken(TokenType::COMMA);
             break;

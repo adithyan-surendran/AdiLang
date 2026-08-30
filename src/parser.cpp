@@ -188,6 +188,7 @@ std::unique_ptr<Expr> Parser::assignment()
         Token opToken = previous();
         auto value = assignment();
 
+        // 1. Regular variable assignment: x = value
         if (auto varExpr = dynamic_cast<VariableExpr*>(expr.get()))
         {
             std::string name = varExpr->name;
@@ -207,6 +208,20 @@ std::unique_ptr<Expr> Parser::assignment()
             auto desugaredBinary = std::make_unique<BinaryExpr>(std::move(varNode), binaryOp, std::move(value));
 
             return std::make_unique<AssignExpr>(name, std::move(desugaredBinary));
+        }
+
+        // 2. Index assignment: arr[i] = value
+        if (auto indexGet = dynamic_cast<IndexGetExpr*>(expr.get()))
+        {
+            if (opToken.type == TokenType::EQUAL) {
+                return std::make_unique<IndexSetExpr>(
+                    std::move(indexGet->target),
+                    std::move(indexGet->index),
+                    std::move(value)
+                );
+            }
+
+            throw std::runtime_error("Parser Error: Compound assignment on array elements (like +=) not supported yet. Use arr[i] = arr[i] + val.");
         }
 
         std::cerr << "Parser Error: Invalid assignment target at line " << opToken.line << "\n";
@@ -323,24 +338,18 @@ std::unique_ptr<Expr> Parser::primary()
 {
     if (match(TokenType::NUMBER))
     {
-        double value =
-            std::stod(previous().lexeme);
-
+        double value = std::stod(previous().lexeme);
         return std::make_unique<NumberExpr>(value);
     }
 
     if (match(TokenType::STRING))
     {
-        return std::make_unique<StringExpr>(
-            previous().lexeme
-        );
+        return std::make_unique<StringExpr>(previous().lexeme);
     }
 
     if (match(TokenType::IDENTIFIER))
     {
-        return std::make_unique<VariableExpr>(
-            previous().lexeme
-        );
+        return std::make_unique<VariableExpr>(previous().lexeme);
     }
 
     if (match(TokenType::TRUE))
@@ -353,21 +362,29 @@ std::unique_ptr<Expr> Parser::primary()
         return std::make_unique<VariableExpr>("false");
     }
 
+    // --- Array Literal: [elem1, elem2, ...] ---
+    if (match(TokenType::LEFT_BRACKET)) {
+        std::vector<std::unique_ptr<Expr>> elements;
+        if (!check(TokenType::RIGHT_BRACKET)) {
+            do {
+                if (elements.size() >= 255) {
+                    throw std::runtime_error("Parser Error: Cannot have more than 255 elements in an array literal.");
+                }
+                elements.push_back(expression());
+            } while (match(TokenType::COMMA));
+        }
+        consume(TokenType::RIGHT_BRACKET, "Expected ']' after array elements.");
+        return std::make_unique<ArrayExpr>(std::move(elements));
+    }
+
     if (match(TokenType::LEFT_PAREN))
     {
         auto expr = expression();
-
-        consume(
-            TokenType::RIGHT_PAREN,
-            "Expected ')'"
-        );
-
+        consume(TokenType::RIGHT_PAREN, "Expected ')'");
         return expr;
     }
 
-    std::cerr
-        << "Parser Error: Expected expression\n";
-
+    std::cerr << "Parser Error: Expected expression\n";
     return nullptr;
 }
 std::unique_ptr<Stmt> Parser::printStatement()
@@ -537,7 +554,13 @@ std::unique_ptr<Expr> Parser::call() {
     while (true) {
         if (match(TokenType::LEFT_PAREN)) {
             expr = finishCall(std::move(expr));
-        } else {
+        } 
+        else if (match(TokenType::LEFT_BRACKET)) {
+            auto index = expression();
+            consume(TokenType::RIGHT_BRACKET, "Expected ']' after array index.");
+            expr = std::make_unique<IndexGetExpr>(std::move(expr), std::move(index));
+        } 
+        else {
             break;
         }
     }

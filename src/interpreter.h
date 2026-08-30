@@ -147,6 +147,7 @@ private:
     }
 
     // --- Expression Evaluation ---
+    // --- Expression Evaluation ---
     Value evaluate(const Expr* expr) {
         if (!expr) {
             throw std::runtime_error("Null expression encountered during evaluation.");
@@ -282,6 +283,61 @@ private:
             }
 
             throw std::runtime_error("Type error in binary operation.");
+        }
+
+        // 8. Array Literal Expression: [e1, e2, ...]
+        if (auto arrExpr = dynamic_cast<const ArrayExpr*>(expr)) {
+            std::vector<Value> evaluatedElements;
+            for (const auto& el : arrExpr->elements) {
+                evaluatedElements.push_back(evaluate(el.get()));
+            }
+            return std::make_shared<AdiArray>(std::move(evaluatedElements));
+        }
+
+        // 9. Index Get Expression: target[index]
+        if (auto indexGet = dynamic_cast<const IndexGetExpr*>(expr)) {
+            Value targetVal = evaluate(indexGet->target.get());
+            Value indexVal = evaluate(indexGet->index.get());
+
+            if (!std::holds_alternative<std::shared_ptr<AdiArray>>(targetVal)) {
+                throw std::runtime_error("Only arrays can be indexed.");
+            }
+            if (!std::holds_alternative<double>(indexVal)) {
+                throw std::runtime_error("Array index must be a number.");
+            }
+
+            auto arr = std::get<std::shared_ptr<AdiArray>>(targetVal);
+            int idx = static_cast<int>(std::get<double>(indexVal));
+
+            if (idx < 0 || static_cast<size_t>(idx) >= arr->elements.size()) {
+                throw std::runtime_error("Array index out of bounds: " + std::to_string(idx));
+            }
+
+            return arr->elements[idx];
+        }
+
+        // 10. Index Set Expression: target[index] = value
+        if (auto indexSet = dynamic_cast<const IndexSetExpr*>(expr)) {
+            Value targetVal = evaluate(indexSet->target.get());
+            Value indexVal = evaluate(indexSet->index.get());
+            Value val = evaluate(indexSet->value.get());
+
+            if (!std::holds_alternative<std::shared_ptr<AdiArray>>(targetVal)) {
+                throw std::runtime_error("Only arrays can be assigned by index.");
+            }
+            if (!std::holds_alternative<double>(indexVal)) {
+                throw std::runtime_error("Array index must be a number.");
+            }
+
+            auto arr = std::get<std::shared_ptr<AdiArray>>(targetVal);
+            int idx = static_cast<int>(std::get<double>(indexVal));
+
+            if (idx < 0 || static_cast<size_t>(idx) >= arr->elements.size()) {
+                throw std::runtime_error("Array assignment index out of bounds: " + std::to_string(idx));
+            }
+
+            arr->elements[idx] = val;
+            return val;
         }
 
         throw std::runtime_error("Unknown expression node.");
