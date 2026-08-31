@@ -3,6 +3,8 @@
 #include "parser.h"
 #include "semantic.h"
 #include "interpreter.h"
+#include "compiler.h"
+#include "vm.h"
 
 std::string tokenName(TokenType type) {
     switch (type) {
@@ -65,58 +67,48 @@ std::string tokenName(TokenType type) {
 }
 
 int main() {
-    std::string source =
-        "print(\"=== v0.9.0 Structs & Array Methods Test ===\");\n"
-        "\n"
-        "// 1. Define and test Structs\n"
-        "struct Point {\n"
-        "    x,\n"
-        "    y\n"
-        "};\n"
-        "\n"
-        "let p = Point(10, 20);\n"
-        "print(\"Initial point x:\");\n"
-        "print(p.x);\n"
-        "\n"
-        "p.x = 42;\n"
-        "print(\"Modified point x:\");\n"
-        "print(p.x);\n"
-        "\n"
-        "// 2. Test Array length, push, and pop\n"
-        "let scores = [85, 90];\n"
-        "print(\"Initial array length:\");\n"
-        "print(scores.length);\n"
-        "\n"
-        "scores.push(95);\n"
-        "scores.push(100);\n"
-        "print(\"Length after pushes:\");\n"
-        "print(scores.length);\n"
-        "\n"
-        "let last = scores.pop();\n"
-        "print(\"Popped score:\");\n"
-        "print(last);\n"
-        "\n"
-        "print(\"Final array length:\");\n"
-        "print(scores.length);\n";
+    std::cout << "==============================\n";
+    std::cout << "        ADILANG v0.10 VM      \n";
+    std::cout << "==============================\n";
 
+    // Test source code featuring arithmetic and print statements
+    std::string source = 
+        "print(12 + 3 * 4);\n"
+        "print((5 + 5) / 2);\n"
+        "print(\"Hello, Bytecode VM!\");\n";
+
+    // 1. Lexing
     Lexer lexer(source);
-    auto tokens = lexer.scanTokens();
+    std::vector<Token> tokens = lexer.scanTokens();
 
+    // 2. Parsing (AST Generation)
     Parser parser(tokens);
     auto program = parser.parse();
 
-    SemanticAnalyzer analyzer;
-    if (!analyzer.analyze(*program)) {
-        std::cerr << "Semantic check failed.\n";
+    if (!program) {
+        std::cerr << "Compilation failed during parsing.\n";
+        return 1;
+    }
+
+    // 3. Compiling AST into Bytecode Chunk
+    Chunk chunk;
+    Compiler compiler;
+    if (!compiler.compile(program.get(), &chunk)) {
+        std::cerr << "Compilation failed during bytecode emission.\n";
+        return 1;
+    }
+
+    // 4. Executing Bytecode on the Virtual Machine
+    VM vm;
+    InterpretResult result = vm.interpret(&chunk);
+
+    if (result != InterpretResult::INTERPRET_OK) {
+        std::cerr << "Runtime execution failed.\n";
         return 1;
     }
 
     std::cout << "==============================\n";
-    std::cout << "       ADILANG v0.9.0 RUN     \n";
-    std::cout << "==============================\n";
-    Interpreter interpreter;
-    interpreter.interpret(*program);
-    std::cout << "==============================\n";
+    std::cout << "done\n";
 
     return 0;
 }
