@@ -3,37 +3,83 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include <variant>
 #include <memory>
 #include <stdexcept>
 #include <iostream>
+#include <functional>
 
-// Forward declaration
-struct AdiFunction;
-struct AdiArray;
-struct AdiStructBlueprint;
-struct AdiInstance;
-struct AdiNativeMethod;
+// Include Chunk and Value definitions first
+#include "chunk.h"
 
-// Represents any dynamic runtime value in AdiLang (including user functions)
-using Value = std::variant<
-    double, 
-    std::string, 
-    bool, 
-    std::shared_ptr<AdiFunction>,
-    std::shared_ptr<AdiArray>,
-    std::shared_ptr<AdiStructBlueprint>,
-    std::shared_ptr<AdiInstance>,
-    std::shared_ptr<AdiNativeMethod>
-    >;
+// Forward declarations of AST nodes
+struct FunctionStatement;
+struct StructStmt;
+class Interpreter;
+class Environment;
 
-// Runtime representation of an AdiLang array
 struct AdiArray {
     std::vector<Value> elements;
     explicit AdiArray(std::vector<Value> elements) : elements(std::move(elements)) {}
 };
 
-// Helper to print a Value to an output stream
+struct AdiFunction {
+    const FunctionStatement* declaration = nullptr;
+    std::shared_ptr<Environment> closure;
+    Chunk chunk;
+    int arity = 0;
+    std::string name;
+
+    AdiFunction(const FunctionStatement* declaration, std::shared_ptr<Environment> closure)
+        : declaration(declaration), closure(closure) {}
+
+    AdiFunction(std::string name = "", const FunctionStatement* decl = nullptr)
+        : declaration(decl), name(name) {}
+
+    Value call(Interpreter& interpreter, const std::vector<Value>& arguments);
+};
+
+struct AdiStructBlueprint {
+    const StructStmt* declaration;
+    explicit AdiStructBlueprint(const StructStmt* declaration) : declaration(declaration) {}
+};
+
+struct AdiInstance : public std::enable_shared_from_this<AdiInstance> {
+    const StructStmt* klass;
+    std::unordered_map<std::string, Value> fields;
+
+    explicit AdiInstance(const StructStmt* klass) : klass(klass) {}
+
+    Value get(const std::string& name) {
+        auto it = fields.find(name);
+        if (it != fields.end()) {
+            return it->second;
+        }
+        throw std::runtime_error("Undefined property '" + name + "'.");
+    }
+
+    void set(const std::string& name, Value value) {
+        fields[name] = value;
+    }
+};
+
+using NativeMethodFn = std::function<Value(std::shared_ptr<AdiArray>, const std::vector<Value>&)>;
+
+struct AdiNativeMethod {
+    std::string name;
+    NativeMethodFn function;
+    std::shared_ptr<AdiArray> self;
+
+    AdiNativeMethod(std::string name, NativeMethodFn function, std::shared_ptr<AdiArray> self)
+        : name(name), function(function), self(self) {}
+
+    Value call(const std::vector<Value>& args) {
+        return function(self, args);
+    }
+};
+
+// Helper to print a Value
 inline void printValue(const Value& val) {
     std::visit([](const auto& v) {
         using T = std::decay_t<decltype(v)>;
@@ -42,11 +88,11 @@ inline void printValue(const Value& val) {
         } else if constexpr (std::is_same_v<T, std::shared_ptr<AdiFunction>>) {
             std::cout << "<fn>";
         } else if constexpr (std::is_same_v<T, std::shared_ptr<AdiNativeMethod>>) {
-            std::cout << "<native fn>"; // Add
+            std::cout << "<native fn>";
         } else if constexpr (std::is_same_v<T, std::shared_ptr<AdiStructBlueprint>>) {
-            std::cout << "<struct blueprint>"; // Add
+            std::cout << "<struct blueprint>";
         } else if constexpr (std::is_same_v<T, std::shared_ptr<AdiInstance>>) {
-            std::cout << "<object instance>"; // Add
+            std::cout << "<object instance>";
         } else if constexpr (std::is_same_v<T, std::shared_ptr<AdiArray>>) {
             std::cout << "[";
             for (size_t i = 0; i < v->elements.size(); ++i) {
@@ -63,22 +109,18 @@ inline void printValue(const Value& val) {
 class Environment {
 private:
     std::unordered_map<std::string, Value> values;
-    std::shared_ptr<Environment> enclosing; // Outer scope pointer
+    std::shared_ptr<Environment> enclosing;
 
 public:
-    // Global scope constructor
     Environment() : enclosing(nullptr) {}
 
-    // Inner scope constructor linked to parent
     explicit Environment(std::shared_ptr<Environment> enclosing)
         : enclosing(std::move(enclosing)) {}
 
-    // Define or overwrite variable in the CURRENT scope
     void define(const std::string& name, const Value& value) {
         values[name] = value;
     }
 
-    // Look up a variable: checks current scope, then traverses parent scopes
     Value get(const std::string& name) const {
         auto it = values.find(name);
         if (it != values.end()) {
@@ -92,7 +134,6 @@ public:
         throw std::runtime_error("Undefined variable '" + name + "'.");
     }
 
-    // Assign to an EXISTING variable (supports variable mutation if needed)
     void assign(const std::string& name, const Value& value) {
         auto it = values.find(name);
         if (it != values.end()) {

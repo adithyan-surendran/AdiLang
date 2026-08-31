@@ -226,7 +226,7 @@ public:
 class BlockStatement : public Stmt
 {
 public:
-    std::vector<std::unique_ptr<Stmt>> statements;
+    std::vector<std::unique_ptr<Stmt>> statements;  
 
     explicit BlockStatement(std::vector<std::unique_ptr<Stmt>> stmts)
         : statements(std::move(stmts))

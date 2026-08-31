@@ -7,6 +7,12 @@
 #include <variant>
 #include <unordered_map>
 
+struct CallFrame {
+    std::shared_ptr<AdiFunction> function;
+    size_t ip;
+    size_t slots; // Stack offset for this function's locals
+};
+
 enum class InterpretResult {
     INTERPRET_OK,
     INTERPRET_COMPILE_ERROR,
@@ -15,6 +21,12 @@ enum class InterpretResult {
 
 class VM {
 private:
+    static constexpr int FRAMES_MAX = 64;
+    static constexpr int STACK_MAX = FRAMES_MAX * 256;
+
+    CallFrame frames[FRAMES_MAX];
+    int frameCount = 0;
+
     Chunk* chunk;
     size_t ip; // Instruction Pointer
     std::vector<Value> stack;
@@ -52,15 +64,37 @@ private:
 
 public:
     InterpretResult interpret(Chunk* targetChunk) {
-        chunk = targetChunk;
-        ip = 0;
-        resetStack();
+        auto scriptFunction = std::make_shared<AdiFunction>("script");
+        scriptFunction->chunk = *targetChunk;
 
-        while (ip < chunk->code.size()) {
+        resetStack();
+        frameCount = 0;
+
+        CallFrame* frame = &frames[frameCount++];
+        frame->function = scriptFunction;
+        frame->ip = 0;
+        frame->slots = 0;
+
+        chunk = &scriptFunction->chunk;
+        ip = 0;
+
+        while (true) {
+            // Synchronize active chunk and instruction pointer with the current frame
+            CallFrame* currentFrame = &frames[frameCount - 1];
+            chunk = &currentFrame->function->chunk;
+            ip = currentFrame->ip;
+
+            if (ip >= chunk->code.size()) {
+                break;
+            }
+
             uint8_t instruction = chunk->code[ip++];
+            currentFrame->ip = ip; // Save back advanced IP
+
             switch (static_cast<OpCode>(instruction)) {
                 case OpCode::OP_CONSTANT: {
                     uint8_t constantIndex = chunk->code[ip++];
+                    currentFrame->ip = ip;
                     push(chunk->constants[constantIndex]);
                     break;
                 }
@@ -71,12 +105,14 @@ public:
 
                 case OpCode::OP_DEFINE_GLOBAL: {
                     uint8_t nameIndex = chunk->code[ip++];
+                    currentFrame->ip = ip;
                     std::string name = std::get<std::string>(chunk->constants[nameIndex]);
                     globals[name] = pop();
                     break;
                 }
                 case OpCode::OP_GET_GLOBAL: {
                     uint8_t nameIndex = chunk->code[ip++];
+                    currentFrame->ip = ip;
                     std::string name = std::get<std::string>(chunk->constants[nameIndex]);
                     if (globals.find(name) == globals.end()) {
                         std::cerr << "Runtime Error: Undefined variable '" << name << "'.\n";
@@ -87,6 +123,7 @@ public:
                 }
                 case OpCode::OP_SET_GLOBAL: {
                     uint8_t nameIndex = chunk->code[ip++];
+                    currentFrame->ip = ip;
                     std::string name = std::get<std::string>(chunk->constants[nameIndex]);
                     if (globals.find(name) == globals.end()) {
                         std::cerr << "Runtime Error: Undefined variable '" << name << "'.\n";
@@ -162,9 +199,6 @@ public:
                     std::cout << "\n";
                     break;
                 }
-                case OpCode::OP_RETURN: {
-                    return InterpretResult::INTERPRET_OK;
-                }
                 case OpCode::OP_EQUAL: {
                     Value b = pop();
                     Value a = pop();
@@ -196,34 +230,77 @@ public:
                 case OpCode::OP_JUMP: {
                     uint16_t offset = (chunk->code[ip] << 8) | chunk->code[ip + 1];
                     ip += 2;
-                    ip += offset;
+                    currentFrame->ip = ip + offset;
                     break;
                 }
                 case OpCode::OP_JUMP_IF_FALSE: {
                     uint16_t offset = (chunk->code[ip] << 8) | chunk->code[ip + 1];
                     ip += 2;
-                    // Check if top of stack is falsy (false or nil)
+                    currentFrame->ip = ip;
                     Value val = stack.back();
                     bool isFalsy = std::holds_alternative<bool>(val) && !std::get<bool>(val);
                     if (isFalsy) {
-                        ip += offset;
+                        currentFrame->ip += offset;
                     }
                     break;
                 }
                 case OpCode::OP_LOOP: {
                     uint16_t offset = (chunk->code[ip] << 8) | chunk->code[ip + 1];
                     ip += 2;
-                    ip -= offset;
+                    currentFrame->ip = ip - offset;
                     break;
                 }
                 case OpCode::OP_GET_LOCAL: {
                     uint8_t slot = chunk->code[ip++];
-                    push(stack[slot]);
+                    currentFrame->ip = ip;
+                    push(stack[currentFrame->slots + slot]);
                     break;
                 }
                 case OpCode::OP_SET_LOCAL: {
                     uint8_t slot = chunk->code[ip++];
-                    stack[slot] = peek(0);
+                    currentFrame->ip = ip;
+                    stack[currentFrame->slots + slot] = peek(0);
+                    break;
+                }
+                case OpCode::OP_CALL: {
+                    uint8_t argCount = chunk->code[ip++];
+                    currentFrame->ip = ip;
+                    Value callee = peek(argCount);
+
+                    if (!std::holds_alternative<std::shared_ptr<AdiFunction>>(callee)) {
+                        std::cerr << "Runtime Error: Can only call functions.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    auto function = std::get<std::shared_ptr<AdiFunction>>(callee);
+                    if (argCount != function->arity) {
+                        std::cerr << "Runtime Error: Expected " << function->arity 
+                                  << " arguments but got " << argCount << ".\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    if (frameCount == FRAMES_MAX) {
+                        std::cerr << "Runtime Error: Stack overflow.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    CallFrame* frame = &frames[frameCount++];
+                    frame->function = function;
+                    frame->ip = 0;
+                    frame->slots = stack.size() - argCount - 1;
+                    break;
+                }
+                case OpCode::OP_RETURN: {
+                    Value result = pop();
+                    frameCount--;
+
+                    if (frameCount == 0) {
+                        return InterpretResult::INTERPRET_OK;
+                    }
+
+                    CallFrame* prevFrame = &frames[frameCount];
+                    stack.resize(prevFrame->slots);
+                    push(result);
                     break;
                 }
                 default:

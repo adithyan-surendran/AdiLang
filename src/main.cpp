@@ -68,29 +68,44 @@ std::string tokenName(TokenType type) {
 
 int main() {
     std::string source = 
-        "let globalVar = \"I am global\";\n"
-        "{\n"
-        "    let localVar = 42;\n"
-        "    print(localVar);\n"
-        "    let globalVar = \"Shadowed global\";\n"
-        "    print(globalVar);\n"
-        "}\n"
-        "print(globalVar);\n";
+    "// 1. Variables & Arithmetic\n"
+    "let x = 10;\n"
+    "let y = 20;\n"
+    "print(x + y * 2);\n\n"
 
+    "// 2. Control Flow & Loops\n"
+    "let count = 0;\n"
+    "while (count < 3) {\n"
+    "    print(count);\n"
+    "    count = count + 1;\n"
+    "}\n\n"
+
+    "// 3. Functions & Parameters\n"
+    "fn multiply(a, b) {\n"
+    "    return a * b;\n"
+    "}\n"
+    "print(multiply(6, 7));\n\n"
+
+    "// 4. Arrays & Indexing\n"
+    "let arr = [10, 20, 30];\n"
+    "print(arr[1]);\n"
+    "arr[1] = 99;\n"
+    "print(arr[1]);\n\n"
+
+    "// 5. Structs & Properties\n"
+    "struct Point { x, y }\n"
+    "let p = Point(5, 12);\n"
+    "print(p.x);\n"
+    "p.x = 100;\n"
+    "print(p.x);\n";
     Lexer lexer(source);
     auto tokens = lexer.scanTokens();
 
     Parser parser(tokens);
     auto program = parser.parse();
 
-    SemanticAnalyzer analyzer;
-    if (!analyzer.analyze(*program)) {
-        std::cerr << "Semantic check failed.\n";
-        return 1;
-    }
-
     std::cout << "==============================\n";
-    std::cout << "       ADILANG v0.10.2 RUN     \n";
+    std::cout << "       ADILANG v0.10.3 RUN     \n";
     std::cout << "==============================\n";
 
     Chunk chunk;

@@ -6,11 +6,13 @@
 #include <vector> 
 #include <memory>
 #include <string>
+#include <unordered_set>
 
 class Parser {
 private:
     std::vector<Token> tokens;
     int current = 0;
+    std::unordered_set<std::string> structNames;
 
     // Statements
     std::unique_ptr<Stmt> statement();

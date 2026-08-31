@@ -545,7 +545,6 @@ std::unique_ptr<Stmt> Parser::functionDeclaration() {
         throw std::runtime_error("Parser Error: Expected '{' before function body.");
     }
 
-    // Change blockStatement() to block() (or whatever your block parsing method is named)
     auto bodyStmt = block(); 
     auto body = std::unique_ptr<BlockStatement>(dynamic_cast<BlockStatement*>(bodyStmt.release()));
 
@@ -570,19 +569,20 @@ std::unique_ptr<Expr> Parser::call() {
 
     while (true) {
         if (match(TokenType::LEFT_PAREN)) {
-            // If primary was an identifier (like Point), convert it to a StructInstanceExpr if it's instantiation, 
-            // otherwise treat as a standard function call.
             if (auto varExpr = dynamic_cast<VariableExpr*>(expr.get())) {
                 std::string structName = varExpr->name;
-                std::vector<std::unique_ptr<Expr>> arguments;
-                if (!check(TokenType::RIGHT_PAREN)) {
-                    do {
-                        arguments.push_back(expression());
-                    } while (match(TokenType::COMMA));
+                if (structNames.find(structName) != structNames.end()) {
+                    std::vector<std::unique_ptr<Expr>> arguments;
+                    if (!check(TokenType::RIGHT_PAREN)) {
+                        do {
+                            arguments.push_back(expression());
+                        } while (match(TokenType::COMMA));
+                    }
+                    consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
+                    expr = std::make_unique<StructInstanceExpr>(structName, std::move(arguments));
+                } else {
+                    expr = finishCall(std::move(expr));
                 }
-                consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
-                // Return struct instantiation blueprint wrapper
-                expr = std::make_unique<StructInstanceExpr>(structName, std::move(arguments));
             } else {
                 expr = finishCall(std::move(expr));
             }
@@ -625,6 +625,7 @@ std::unique_ptr<Expr> Parser::finishCall(std::unique_ptr<Expr> callee) {
 std::unique_ptr<Stmt> Parser::structDeclaration() {
     Token nameToken = consume(TokenType::IDENTIFIER, "Expected struct name.");
     std::string name = nameToken.lexeme;
+    structNames.insert(name);
 
     consume(TokenType::LEFT_BRACE, "Expected '{' before struct body.");
 
