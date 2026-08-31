@@ -41,7 +41,7 @@ inline Value getArrayProperty(std::shared_ptr<AdiArray> self, const std::string&
     }
     
     if (name == "push") {
-        return std::make_shared<AdiNativeMethod>("push", [](std::shared_ptr<AdiArray> arr, const std::vector<Value>& args) {
+        NativeMethodFn pushFn = [](std::shared_ptr<AdiArray> arr, const std::vector<Value>& args) {
             if (args.empty()) {
                 throw std::runtime_error("Method 'push' expects at least 1 argument.");
             }
@@ -49,18 +49,20 @@ inline Value getArrayProperty(std::shared_ptr<AdiArray> self, const std::string&
                 arr->elements.push_back(arg);
             }
             return args.back();
-        }, self);
+        };
+        return std::make_shared<AdiNativeMethod>("push", pushFn, self);
     }
 
     if (name == "pop") {
-        return std::make_shared<AdiNativeMethod>("pop", [](std::shared_ptr<AdiArray> arr, const std::vector<Value>&) {
+        NativeMethodFn popFn = [](std::shared_ptr<AdiArray> arr, const std::vector<Value>&) {
             if (arr->elements.empty()) {
                 throw std::runtime_error("Cannot pop from an empty array.");
             }
             Value val = arr->elements.back();
             arr->elements.pop_back();
             return val;
-        }, self);
+        };
+        return std::make_shared<AdiNativeMethod>("pop", popFn, self);
     }
 
     throw std::runtime_error("Array has no property or method '" + name + "'.");
@@ -351,16 +353,16 @@ private:
             }
 
             auto blueprint = std::get<std::shared_ptr<AdiStructBlueprint>>(callee);
-            auto instance = std::make_shared<AdiInstance>(blueprint->declaration);
+            auto instance = std::make_shared<AdiInstance>(blueprint);
 
-            if (instExpr->arguments.size() != blueprint->declaration->fields.size()) {
-                throw std::runtime_error("Struct expected " + std::to_string(blueprint->declaration->fields.size()) +
+            if (instExpr->arguments.size() != blueprint->fields.size()) {
+                throw std::runtime_error("Struct expected " + std::to_string(blueprint->fields.size()) +
                                           " arguments but got " + std::to_string(instExpr->arguments.size()) + ".");
             }
 
             for (size_t i = 0; i < instExpr->arguments.size(); i++) {
                 Value val = evaluate(instExpr->arguments[i].get());
-                instance->set(blueprint->declaration->fields[i], val);
+                instance->set(blueprint->fields[i], val);
             }
 
             return instance;

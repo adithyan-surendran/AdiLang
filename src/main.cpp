@@ -98,6 +98,7 @@ int main() {
     "print(p.x);\n"
     "p.x = 100;\n"
     "print(p.x);\n";
+
     Lexer lexer(source);
     auto tokens = lexer.scanTokens();
 
@@ -105,7 +106,7 @@ int main() {
     auto program = parser.parse();
 
     std::cout << "==============================\n";
-    std::cout << "       ADILANG v0.10.3 RUN     \n";
+    std::cout << "       ADILANG v0.10.4 RUN     \n";
     std::cout << "==============================\n";
 
     Chunk chunk;

@@ -2,6 +2,7 @@
 #define ADILANG_VM_H
 
 #include "chunk.h"
+#include "compiler.h"
 #include <iostream>
 #include <vector>
 #include <variant>
@@ -79,7 +80,6 @@ public:
         ip = 0;
 
         while (true) {
-            // Synchronize active chunk and instruction pointer with the current frame
             CallFrame* currentFrame = &frames[frameCount - 1];
             chunk = &currentFrame->function->chunk;
             ip = currentFrame->ip;
@@ -89,7 +89,7 @@ public:
             }
 
             uint8_t instruction = chunk->code[ip++];
-            currentFrame->ip = ip; // Save back advanced IP
+            currentFrame->ip = ip;
 
             switch (static_cast<OpCode>(instruction)) {
                 case OpCode::OP_CONSTANT: {
@@ -303,8 +303,140 @@ public:
                     push(result);
                     break;
                 }
+                case OpCode::OP_STRUCT_INSTANCE: {
+                    uint8_t argCount = chunk->code[ip++];
+                    currentFrame->ip = ip;
+                    Value callee = peek(argCount);
+
+                    if (!std::holds_alternative<std::shared_ptr<AdiStructDef>>(callee)) {
+                        std::cerr << "Runtime Error: Can only instantiate structs.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    auto structDef = std::get<std::shared_ptr<AdiStructDef>>(callee);
+                    if (argCount != structDef->fields.size()) {
+                        std::cerr << "Runtime Error: Expected " << structDef->fields.size() 
+                                  << " arguments but got " << argCount << ".\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    auto instance = std::make_shared<AdiInstance>(structDef);
+                    for (size_t i = 0; i < structDef->fields.size(); i++) {
+                        instance->fields[structDef->fields[i]] = peek(argCount - 1 - i);
+                    }
+
+                    for (int i = 0; i <= argCount; i++) {
+                        pop();
+                    }
+                    push(instance);
+                    break;
+                }
+                case OpCode::OP_GET: {
+                    uint8_t nameIndex = chunk->code[ip++];
+                    currentFrame->ip = ip;
+                    std::string name = std::get<std::string>(chunk->constants[nameIndex]);
+                    Value targetVal = pop();
+
+                    if (!std::holds_alternative<std::shared_ptr<AdiInstance>>(targetVal)) {
+                        std::cerr << "Runtime Error: Only instances have properties.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    auto instance = std::get<std::shared_ptr<AdiInstance>>(targetVal);
+                    if (instance->fields.find(name) == instance->fields.end()) {
+                        std::cerr << "Runtime Error: Undefined property '" << name << "'.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    push(instance->fields[name]);
+                    break;
+                }
+                case OpCode::OP_SET: {
+                    uint8_t nameIndex = chunk->code[ip++];
+                    currentFrame->ip = ip;
+                    std::string name = std::get<std::string>(chunk->constants[nameIndex]);
+                    Value targetVal = pop();
+                    Value value = pop();
+
+                    if (!std::holds_alternative<std::shared_ptr<AdiInstance>>(targetVal)) {
+                        std::cerr << "Runtime Error: Only instances have fields.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    auto instance = std::get<std::shared_ptr<AdiInstance>>(targetVal);
+                    instance->fields[name] = value;
+                    push(value);
+                    break;
+                }
+                case OpCode::OP_STRUCT: {
+                    // Handled via constant table / globals during compilation passes
+                    break;
+                }
+                case OpCode::OP_ARRAY: {
+                    uint8_t elementCount = chunk->code[ip++];
+                    currentFrame->ip = ip;
+                    std::vector<Value> elements;
+                    // Elements are on the stack in order, pop them
+                    elements.resize(elementCount);
+                    for (int i = elementCount - 1; i >= 0; i--) {
+                        elements[i] = pop();
+                    }
+                    push(std::make_shared<AdiArray>(std::move(elements)));
+                    break;
+                }
+                case OpCode::OP_INDEX_GET: {
+                    Value indexVal = pop();
+                    Value targetVal = pop();
+
+                    if (!std::holds_alternative<std::shared_ptr<AdiArray>>(targetVal)) {
+                        std::cerr << "Runtime Error: Only arrays can be indexed.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+                    if (!std::holds_alternative<double>(indexVal)) {
+                        std::cerr << "Runtime Error: Array index must be a number.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    auto arr = std::get<std::shared_ptr<AdiArray>>(targetVal);
+                    int idx = static_cast<int>(std::get<double>(indexVal));
+
+                    if (idx < 0 || static_cast<size_t>(idx) >= arr->elements.size()) {
+                        std::cerr << "Runtime Error: Array index out of bounds: " << idx << "\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    push(arr->elements[idx]);
+                    break;
+                }
+                case OpCode::OP_INDEX_SET: {
+                    Value indexVal = pop();
+                    Value targetVal = pop();
+                    Value val = pop();
+
+                    if (!std::holds_alternative<std::shared_ptr<AdiArray>>(targetVal)) {
+                        std::cerr << "Runtime Error: Only arrays can be assigned by index.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+                    if (!std::holds_alternative<double>(indexVal)) {
+                        std::cerr << "Runtime Error: Array index must be a number.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    auto arr = std::get<std::shared_ptr<AdiArray>>(targetVal);
+                    int idx = static_cast<int>(std::get<double>(indexVal));
+
+                    if (idx < 0 || static_cast<size_t>(idx) >= arr->elements.size()) {
+                        std::cerr << "Runtime Error: Array assignment index out of bounds: " << idx << "\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    arr->elements[idx] = val;
+                    push(val);
+                    break;
+                }
                 default:
-                    std::cerr << "Unknown opcode execution error.\n";
+                    std::cerr << "Unknown opcode execution error: " << static_cast<int>(instruction) 
+                              << " at IP: " << (ip - 1) << "\n";
                     return InterpretResult::INTERPRET_RUNTIME_ERROR;
             }
         }
@@ -313,4 +445,4 @@ public:
     }
 };
 
-#endif
+#endif // ADILANG_VM_H

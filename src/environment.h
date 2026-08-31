@@ -10,12 +10,12 @@
 #include <iostream>
 #include <functional>
 
-// Include Chunk and Value definitions first
+// Include Chunk, Value definitions, and Object structures first
 #include "chunk.h"
+#include "object.h"
 
 // Forward declarations of AST nodes
 struct FunctionStatement;
-struct StructStmt;
 class Interpreter;
 class Environment;
 
@@ -38,30 +38,6 @@ struct AdiFunction {
         : declaration(decl), name(name) {}
 
     Value call(Interpreter& interpreter, const std::vector<Value>& arguments);
-};
-
-struct AdiStructBlueprint {
-    const StructStmt* declaration;
-    explicit AdiStructBlueprint(const StructStmt* declaration) : declaration(declaration) {}
-};
-
-struct AdiInstance : public std::enable_shared_from_this<AdiInstance> {
-    const StructStmt* klass;
-    std::unordered_map<std::string, Value> fields;
-
-    explicit AdiInstance(const StructStmt* klass) : klass(klass) {}
-
-    Value get(const std::string& name) {
-        auto it = fields.find(name);
-        if (it != fields.end()) {
-            return it->second;
-        }
-        throw std::runtime_error("Undefined property '" + name + "'.");
-    }
-
-    void set(const std::string& name, Value value) {
-        fields[name] = value;
-    }
 };
 
 using NativeMethodFn = std::function<Value(std::shared_ptr<AdiArray>, const std::vector<Value>&)>;

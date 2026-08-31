@@ -8,6 +8,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
+#include <stdexcept>
 
 struct Local {
     std::string name;
@@ -32,7 +33,6 @@ private:
 
     void initFunction(std::shared_ptr<AdiFunction> function) {
         current = new FunctionCompiler{function, 0, {}, 0};
-        // Local 0 is reserved for internal/this usage
         Local local;
         local.name = "";
         local.depth = 0;
@@ -108,7 +108,7 @@ private:
         }
         Local local;
         local.name = name;
-        local.depth = -1; // Mark as uninitialized until declared
+        local.depth = -1;
         current->locals.push_back(local);
     }
 
@@ -129,7 +129,7 @@ private:
     uint8_t parseVariable(const std::string& name) {
         if (current->scopeDepth > 0) {
             declareVariable(name);
-            return 0; // Local variables use stack slots
+            return 0;
         }
         return makeConstant(name);
     }
@@ -171,13 +171,13 @@ private:
         else if (auto ifStmt = dynamic_cast<const IfStatement*>(stmt)) {
             compileExpression(ifStmt->condition.get());
             int thenJump = emitJump(static_cast<uint8_t>(OpCode::OP_JUMP_IF_FALSE));
-            emitByte(static_cast<uint8_t>(OpCode::OP_POP)); // Pop condition
+            emitByte(static_cast<uint8_t>(OpCode::OP_POP));
 
             compileNode(ifStmt->thenBranch.get());
             int elseJump = emitJump(static_cast<uint8_t>(OpCode::OP_JUMP));
 
             patchJump(thenJump);
-            emitByte(static_cast<uint8_t>(OpCode::OP_POP)); // Pop condition
+            emitByte(static_cast<uint8_t>(OpCode::OP_POP));
 
             if (ifStmt->elseBranch != nullptr) {
                 compileNode(ifStmt->elseBranch.get());
@@ -228,11 +228,20 @@ private:
             }
             emitByte(static_cast<uint8_t>(OpCode::OP_RETURN));
         }
+        else if (auto structStmt = dynamic_cast<const StructStmt*>(stmt)) {
+            uint8_t nameConst = makeConstant(structStmt->name);
+            auto structDef = std::make_shared<AdiStructDef>(structStmt->name, structStmt->fields);
+            emitConstant(structDef);
+            defineVariable(nameConst);
+        }
     }
 
     void compileExpression(const Expr* expr) {
         if (auto num = dynamic_cast<const NumberExpr*>(expr)) {
             emitConstant(num->value);
+        }
+        else if (auto str = dynamic_cast<const StringExpr*>(expr)) {
+            emitConstant(str->value);
         }
         else if (auto var = dynamic_cast<const VariableExpr*>(expr)) {
             if (var->name == "true") {
@@ -278,6 +287,44 @@ private:
                 compileExpression(arg.get());
             }
             emitBytes(static_cast<uint8_t>(OpCode::OP_CALL), static_cast<uint8_t>(callExpr->arguments.size()));
+        }
+        else if (auto structInst = dynamic_cast<const StructInstanceExpr*>(expr)) {
+            int arg = resolveLocal(current, structInst->name);
+            if (arg != -1) {
+                emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(arg));
+            } else {
+                emitBytes(static_cast<uint8_t>(OpCode::OP_GET_GLOBAL), makeConstant(structInst->name));
+            }
+            for (const auto& argExpr : structInst->arguments) {
+                compileExpression(argExpr.get());
+            }
+            emitBytes(static_cast<uint8_t>(OpCode::OP_STRUCT_INSTANCE), static_cast<uint8_t>(structInst->arguments.size()));
+        }
+        else if (auto getExpr = dynamic_cast<const GetExpr*>(expr)) {
+            compileExpression(getExpr->object.get());
+            emitBytes(static_cast<uint8_t>(OpCode::OP_GET), makeConstant(getExpr->name));
+        }
+        else if (auto setExpr = dynamic_cast<const SetExpr*>(expr)) {
+            compileExpression(setExpr->value.get());
+            compileExpression(setExpr->object.get());
+            emitBytes(static_cast<uint8_t>(OpCode::OP_SET), makeConstant(setExpr->name));
+        }
+        else if (auto arrExpr = dynamic_cast<const ArrayExpr*>(expr)) {
+            for (const auto& element : arrExpr->elements) {
+                compileExpression(element.get());
+            }
+            emitBytes(static_cast<uint8_t>(OpCode::OP_ARRAY), static_cast<uint8_t>(arrExpr->elements.size()));
+        }
+        else if (auto indexGet = dynamic_cast<const IndexGetExpr*>(expr)) {
+            compileExpression(indexGet->target.get());
+            compileExpression(indexGet->index.get());
+            emitByte(static_cast<uint8_t>(OpCode::OP_INDEX_GET));
+        }
+        else if (auto indexSet = dynamic_cast<const IndexSetExpr*>(expr)) {
+            compileExpression(indexSet->value.get());   // Pushed 1st
+            compileExpression(indexSet->target.get());  // Pushed 2nd
+            compileExpression(indexSet->index.get());   // Pushed 3rd
+            emitByte(static_cast<uint8_t>(OpCode::OP_INDEX_SET));
         }
     }
 
