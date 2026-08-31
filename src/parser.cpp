@@ -112,6 +112,11 @@ std::unique_ptr<Stmt> Parser::statement()
         return printStatement();
     }
 
+    // Inside statement():
+    if (match(TokenType::STRUCT)) {
+        return structDeclaration(); 
+    }
+
     return expressionStatement();
 }
 
@@ -222,6 +227,18 @@ std::unique_ptr<Expr> Parser::assignment()
             }
 
             throw std::runtime_error("Parser Error: Compound assignment on array elements (like +=) not supported yet. Use arr[i] = arr[i] + val.");
+        }
+        // 3. Property / Field assignment: obj.field = value
+        if (auto getExpr = dynamic_cast<GetExpr*>(expr.get()))
+        {
+            if (opToken.type == TokenType::EQUAL) {
+                return std::make_unique<SetExpr>(
+                    std::move(getExpr->object),
+                    getExpr->name,
+                    std::move(value)
+                );
+            }
+            throw std::runtime_error("Parser Error: Compound assignment on object properties (like +=) not supported yet.");
         }
 
         std::cerr << "Parser Error: Invalid assignment target at line " << opToken.line << "\n";
@@ -553,13 +570,32 @@ std::unique_ptr<Expr> Parser::call() {
 
     while (true) {
         if (match(TokenType::LEFT_PAREN)) {
-            expr = finishCall(std::move(expr));
+            // If primary was an identifier (like Point), convert it to a StructInstanceExpr if it's instantiation, 
+            // otherwise treat as a standard function call.
+            if (auto varExpr = dynamic_cast<VariableExpr*>(expr.get())) {
+                std::string structName = varExpr->name;
+                std::vector<std::unique_ptr<Expr>> arguments;
+                if (!check(TokenType::RIGHT_PAREN)) {
+                    do {
+                        arguments.push_back(expression());
+                    } while (match(TokenType::COMMA));
+                }
+                consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
+                // Return struct instantiation blueprint wrapper
+                expr = std::make_unique<StructInstanceExpr>(structName, std::move(arguments));
+            } else {
+                expr = finishCall(std::move(expr));
+            }
         } 
         else if (match(TokenType::LEFT_BRACKET)) {
             auto index = expression();
             consume(TokenType::RIGHT_BRACKET, "Expected ']' after array index.");
             expr = std::make_unique<IndexGetExpr>(std::move(expr), std::move(index));
-        } 
+        }
+        else if (match(TokenType::DOT)) {
+            Token name = consume(TokenType::IDENTIFIER, "Expected property name after '.'.");
+            expr = std::make_unique<GetExpr>(std::move(expr), name.lexeme);
+        }
         else {
             break;
         }
@@ -584,4 +620,23 @@ std::unique_ptr<Expr> Parser::finishCall(std::unique_ptr<Expr> callee) {
     }
 
     return std::make_unique<CallExpr>(std::move(callee), std::move(arguments));
+}
+
+std::unique_ptr<Stmt> Parser::structDeclaration() {
+    Token nameToken = consume(TokenType::IDENTIFIER, "Expected struct name.");
+    std::string name = nameToken.lexeme;
+
+    consume(TokenType::LEFT_BRACE, "Expected '{' before struct body.");
+
+    std::vector<std::string> fields;
+    if (!check(TokenType::RIGHT_BRACE)) {
+        do {
+            Token fieldToken = consume(TokenType::IDENTIFIER, "Expected field name.");
+            fields.push_back(fieldToken.lexeme);
+        } while (match(TokenType::COMMA));
+    }
+
+    consume(TokenType::RIGHT_BRACE, "Expected '}' after struct body.");
+    match(TokenType::SEMICOLON);
+    return std::make_unique<StructStmt>(name, std::move(fields));
 }

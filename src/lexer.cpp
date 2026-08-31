@@ -216,6 +216,10 @@ void Lexer::scanToken() {
                 std::cerr << "Error at line " << line << ": Unexpected character '|'\n";
             }
             break;
+            
+        case '.':
+            addToken(TokenType::DOT);
+            break;
 
         default:
 
@@ -327,6 +331,9 @@ void Lexer::identifier() {
 
     else if (text == "false")
         addToken(TokenType::FALSE);
+
+    else if (text == "struct")
+        addToken(TokenType::STRUCT);
 
     else
         addToken(TokenType::IDENTIFIER);

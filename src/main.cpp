@@ -43,6 +43,7 @@ std::string tokenName(TokenType type) {
         case TokenType::CONTINUE: return "CONTINUE";
         case TokenType::FN: return "FN";
         case TokenType::RETURN: return "RETURN";
+        case TokenType::STRUCT: return "STRUCT";
 
         case TokenType::TRUE: return "TRUE";
         case TokenType::FALSE: return "FALSE";
@@ -55,6 +56,7 @@ std::string tokenName(TokenType type) {
         case TokenType::RIGHT_BRACKET: return "RIGHT_BRACKET";
         case TokenType::COMMA: return "COMMA";
         case TokenType::SEMICOLON: return "SEMICOLON";
+        case TokenType::DOT: return "DOT";
 
         case TokenType::END_OF_FILE: return "EOF";
     }
@@ -64,35 +66,38 @@ std::string tokenName(TokenType type) {
 
 int main() {
     std::string source =
-        "print(\"=== v0.8.0 Arrays & Collections Test ===\");\n"
+        "print(\"=== v0.9.0 Structs & Array Methods Test ===\");\n"
         "\n"
-        "// 1. Define an array literal\n"
-        "let numbers = [10, 20, 30, 40, 50];\n"
-        "print(\"Initial array:\");\n"
-        "print(numbers);\n"
+        "// 1. Define and test Structs\n"
+        "struct Point {\n"
+        "    x,\n"
+        "    y\n"
+        "};\n"
         "\n"
-        "// 2. Index access\n"
-        "print(\"Element at index 0:\");\n"
-        "print(numbers[0]);\n"
+        "let p = Point(10, 20);\n"
+        "print(\"Initial point x:\");\n"
+        "print(p.x);\n"
         "\n"
-        "print(\"Element at index 2:\");\n"
-        "print(numbers[2]);\n"
+        "p.x = 42;\n"
+        "print(\"Modified point x:\");\n"
+        "print(p.x);\n"
         "\n"
-        "// 3. Item mutation (assignment by index)\n"
-        "numbers[1] = 99;\n"
-        "print(\"Array after modifying index 1 to 99:\");\n"
-        "print(numbers);\n"
+        "// 2. Test Array length, push, and pop\n"
+        "let scores = [85, 90];\n"
+        "print(\"Initial array length:\");\n"
+        "print(scores.length);\n"
         "\n"
-        "// 4. Using variables for indices and expressions inside arrays\n"
-        "let i = 3;\n"
-        "print(\n"
-        "    numbers[i]\n"
-        ");\n"
+        "scores.push(95);\n"
+        "scores.push(100);\n"
+        "print(\"Length after pushes:\");\n"
+        "print(scores.length);\n"
         "\n"
-        "// 5. Nested / Mixed arrays\n"
-        "let mixed = [\"hello\", 3.14, true];\n"
-        "print(\"Mixed type array:\");\n"
-        "print(mixed);\n";
+        "let last = scores.pop();\n"
+        "print(\"Popped score:\");\n"
+        "print(last);\n"
+        "\n"
+        "print(\"Final array length:\");\n"
+        "print(scores.length);\n";
 
     Lexer lexer(source);
     auto tokens = lexer.scanTokens();
@@ -107,7 +112,7 @@ int main() {
     }
 
     std::cout << "==============================\n";
-    std::cout << "       ADILANG v0.8.0 RUN     \n";
+    std::cout << "       ADILANG v0.9.0 RUN     \n";
     std::cout << "==============================\n";
     Interpreter interpreter;
     interpreter.interpret(*program);

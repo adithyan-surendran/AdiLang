@@ -272,4 +272,41 @@ public:
     CallExpr(std::unique_ptr<Expr> callee, std::vector<std::unique_ptr<Expr>> arguments)
         : callee(std::move(callee)), arguments(std::move(arguments)) {}
 };
+
+// 1. Struct Declaration Statement: struct Point { x, y }
+struct StructStmt : public Stmt {
+    std::string name;
+    std::vector<std::string> fields;
+
+    StructStmt(std::string name, std::vector<std::string> fields)
+        : name(std::move(name)), fields(std::move(fields)) {}
+};
+
+// 2. Struct Instance Creation Expression: Point(10, 20)
+struct StructInstanceExpr : public Expr {
+    std::string name;
+    std::vector<std::unique_ptr<Expr>> arguments;
+
+    StructInstanceExpr(std::string name, std::vector<std::unique_ptr<Expr>> arguments)
+        : name(std::move(name)), arguments(std::move(arguments)) {}
+};
+
+// 3. Get / Property Access Expression: obj.field or arr.length
+struct GetExpr : public Expr {
+    std::unique_ptr<Expr> object;
+    std::string name;
+
+    GetExpr(std::unique_ptr<Expr> object, std::string name)
+        : object(std::move(object)), name(std::move(name)) {}
+};
+
+// 4. Set / Property Assignment Expression: obj.field = value
+struct SetExpr : public Expr {
+    std::unique_ptr<Expr> object;
+    std::string name;
+    std::unique_ptr<Expr> value;
+
+    SetExpr(std::unique_ptr<Expr> object, std::string name, std::unique_ptr<Expr> value)
+        : object(std::move(object)), name(std::move(name)), value(std::move(value)) {}
+};
 #endif // ADILANG_AST_H

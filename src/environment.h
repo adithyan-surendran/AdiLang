@@ -11,6 +11,9 @@
 // Forward declaration
 struct AdiFunction;
 struct AdiArray;
+struct AdiStructBlueprint;
+struct AdiInstance;
+struct AdiNativeMethod;
 
 // Represents any dynamic runtime value in AdiLang (including user functions)
 using Value = std::variant<
@@ -18,7 +21,10 @@ using Value = std::variant<
     std::string, 
     bool, 
     std::shared_ptr<AdiFunction>,
-    std::shared_ptr<AdiArray>
+    std::shared_ptr<AdiArray>,
+    std::shared_ptr<AdiStructBlueprint>,
+    std::shared_ptr<AdiInstance>,
+    std::shared_ptr<AdiNativeMethod>
     >;
 
 // Runtime representation of an AdiLang array
@@ -35,6 +41,12 @@ inline void printValue(const Value& val) {
             std::cout << (v ? "true" : "false");
         } else if constexpr (std::is_same_v<T, std::shared_ptr<AdiFunction>>) {
             std::cout << "<fn>";
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<AdiNativeMethod>>) {
+            std::cout << "<native fn>"; // Add
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<AdiStructBlueprint>>) {
+            std::cout << "<struct blueprint>"; // Add
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<AdiInstance>>) {
+            std::cout << "<object instance>"; // Add
         } else if constexpr (std::is_same_v<T, std::shared_ptr<AdiArray>>) {
             std::cout << "[";
             for (size_t i = 0; i < v->elements.size(); ++i) {

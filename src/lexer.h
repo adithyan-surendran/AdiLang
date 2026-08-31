@@ -23,6 +23,7 @@ enum class TokenType {
     FALSE,
     FN,
     RETURN,
+    STRUCT,
 
     // Operators
     PLUS,
@@ -53,6 +54,7 @@ enum class TokenType {
     RIGHT_BRACKET,
     COMMA,
     SEMICOLON,
+    DOT,
     // Logical Operators
     AND_AND,      // &&
     OR_OR,        // ||

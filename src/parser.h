@@ -14,6 +14,7 @@ private:
 
     // Statements
     std::unique_ptr<Stmt> statement();
+    std::unique_ptr<Stmt> structDeclaration();
     std::unique_ptr<Stmt> ifStatement();
     std::unique_ptr<Stmt> whileStatement();
     std::unique_ptr<Stmt> forStatement();
