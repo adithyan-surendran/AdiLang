@@ -67,30 +67,35 @@ std::string tokenName(TokenType type) {
 }
 
 int main() {
-    std::cout << "==============================\n";
-    std::cout << "        ADILANG v0.10 VM      \n";
-    std::cout << "==============================\n";
-
-    // Test source code featuring arithmetic and print statements
     std::string source = 
-        "print(12 + 3 * 4);\n"
-        "print((5 + 5) / 2);\n"
-        "print(\"Hello, Bytecode VM!\");\n";
+        "let x = 10;\n"
+        "if (x > 5) {\n"
+        "    print(\"x is greater than 5\");\n"
+        "} else {\n"
+        "    print(\"x is 5 or less\");\n"
+        "}\n"
+        "let i = 0;\n"
+        "while (i < 3) {\n"
+        "    print(i);\n"
+        "    i = i + 1;\n"
+        "}\n";
 
-    // 1. Lexing
     Lexer lexer(source);
-    std::vector<Token> tokens = lexer.scanTokens();
+    auto tokens = lexer.scanTokens();
 
-    // 2. Parsing (AST Generation)
     Parser parser(tokens);
     auto program = parser.parse();
 
-    if (!program) {
-        std::cerr << "Compilation failed during parsing.\n";
+    SemanticAnalyzer analyzer;
+    if (!analyzer.analyze(*program)) {
+        std::cerr << "Semantic check failed.\n";
         return 1;
     }
 
-    // 3. Compiling AST into Bytecode Chunk
+    std::cout << "==============================\n";
+    std::cout << "       ADILANG v0.10.1 RUN     \n";
+    std::cout << "==============================\n";
+
     Chunk chunk;
     Compiler compiler;
     if (!compiler.compile(program.get(), &chunk)) {
@@ -98,7 +103,6 @@ int main() {
         return 1;
     }
 
-    // 4. Executing Bytecode on the Virtual Machine
     VM vm;
     InterpretResult result = vm.interpret(&chunk);
 
@@ -108,7 +112,6 @@ int main() {
     }
 
     std::cout << "==============================\n";
-    std::cout << "done\n";
 
     return 0;
 }

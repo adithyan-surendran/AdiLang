@@ -161,6 +161,57 @@ public:
                 case OpCode::OP_RETURN: {
                     return InterpretResult::INTERPRET_OK;
                 }
+                case OpCode::OP_EQUAL: {
+                    Value b = pop();
+                    Value a = pop();
+                    push(a == b);
+                    break;
+                }
+                case OpCode::OP_GREATER: {
+                    Value b = pop();
+                    Value a = pop();
+                    if (std::holds_alternative<double>(a) && std::holds_alternative<double>(b)) {
+                        push(std::get<double>(a) > std::get<double>(b));
+                    } else {
+                        std::cerr << "Runtime Error: Operands must be numbers.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+                    break;
+                }
+                case OpCode::OP_LESS: {
+                    Value b = pop();
+                    Value a = pop();
+                    if (std::holds_alternative<double>(a) && std::holds_alternative<double>(b)) {
+                        push(std::get<double>(a) < std::get<double>(b));
+                    } else {
+                        std::cerr << "Runtime Error: Operands must be numbers.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+                    break;
+                }
+                case OpCode::OP_JUMP: {
+                    uint16_t offset = (chunk->code[ip] << 8) | chunk->code[ip + 1];
+                    ip += 2;
+                    ip += offset;
+                    break;
+                }
+                case OpCode::OP_JUMP_IF_FALSE: {
+                    uint16_t offset = (chunk->code[ip] << 8) | chunk->code[ip + 1];
+                    ip += 2;
+                    // Check if top of stack is falsy (false or nil)
+                    Value val = stack.back();
+                    bool isFalsy = std::holds_alternative<bool>(val) && !std::get<bool>(val);
+                    if (isFalsy) {
+                        ip += offset;
+                    }
+                    break;
+                }
+                case OpCode::OP_LOOP: {
+                    uint16_t offset = (chunk->code[ip] << 8) | chunk->code[ip + 1];
+                    ip += 2;
+                    ip -= offset;
+                    break;
+                }
                 default:
                     std::cerr << "Unknown opcode execution error.\n";
                     return InterpretResult::INTERPRET_RUNTIME_ERROR;
