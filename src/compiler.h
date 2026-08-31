@@ -1,13 +1,79 @@
 #ifndef ADILANG_COMPILER_H
 #define ADILANG_COMPILER_H
+#define UINT8_COUNT (UINT8_MAX + 1)
 
 #include "chunk.h"
 #include "parser.h"
 #include <memory>
 #include <stdexcept>
 
+struct Local {
+    std::string name;
+    int depth;
+};
+
 class Compiler {
 private:
+    Local locals[UINT8_COUNT];
+    int localCount = 0;
+    int scopeDepth = 0;
+
+    void initCompiler() {
+        localCount = 0;
+        scopeDepth = 0;
+        // Slot 0 is reserved for internal VM use if needed
+    }
+
+    void beginScope() {
+        scopeDepth++;
+    }
+
+    void endScope() {
+        scopeDepth--;
+        while (localCount > 0 && locals[localCount - 1].depth > scopeDepth) {
+            emitByte(static_cast<uint8_t>(OpCode::OP_POP), 1);
+            localCount--;
+        }
+    }
+
+    void addLocal(std::string name) {
+        if (localCount == UINT8_COUNT) {
+            throw std::runtime_error("Too many local variables in function.");
+        }
+        Local& local = locals[localCount++];
+        local.name = name;
+        local.depth = scopeDepth;
+    }
+
+    int resolveLocal(const std::string& name) {
+        for (int i = localCount - 1; i >= 0; i--) {
+            Local& local = locals[i];
+            if (local.name == name) {
+                return i;
+            }
+        }
+        return -1;
+    }
+    
+    void declareVariable(const std::string& name) {
+        if (scopeDepth == 0) return; // Global variable
+        for (int i = localCount - 1; i >= 0; i--) {
+            Local& local = locals[i];
+            if (local.depth != scopeDepth && local.depth < scopeDepth) {
+                break;
+            }
+            if (name == local.name) {
+                throw std::runtime_error("Variable with this name already declared in this scope.");
+            }
+        }
+        addLocal(name);
+    }
+
+    int parseVariable(const std::string& name) {
+        declareVariable(name);
+        if (scopeDepth > 0) return 0; // Local variables don't need constant table indices
+        return identifierConstant(name, 1);
+    }
     Chunk* compilingChunk;
 
     void emitByte(uint8_t byte, int line) {
@@ -58,9 +124,15 @@ private:
         } else if (auto strExpr = dynamic_cast<StringExpr*>(expr)) {
             emitConstant(strExpr->value, 1);
         } else if (auto varExpr = dynamic_cast<VariableExpr*>(expr)) {
-            uint8_t nameConst = identifierConstant(varExpr->name, 1);
-            emitByte(static_cast<uint8_t>(OpCode::OP_GET_GLOBAL), 1);
-            emitByte(nameConst, 1);
+            int arg = resolveLocal(varExpr->name);
+            if (arg != -1) {
+                emitByte(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), 1);
+                emitByte(static_cast<uint8_t>(arg), 1);
+            } else {
+                uint8_t nameConst = identifierConstant(varExpr->name, 1);
+                emitByte(static_cast<uint8_t>(OpCode::OP_GET_GLOBAL), 1);
+                emitByte(nameConst, 1);
+            }
         } else if (auto binExpr = dynamic_cast<BinaryExpr*>(expr)) {
             compileExpression(binExpr->left.get());
             compileExpression(binExpr->right.get());
@@ -85,9 +157,15 @@ private:
             }
         }else if (auto assignExpr = dynamic_cast<AssignExpr*>(expr)) {
             compileExpression(assignExpr->value.get());
-            uint8_t nameConst = identifierConstant(assignExpr->name, 1);
-            emitByte(static_cast<uint8_t>(OpCode::OP_SET_GLOBAL), 1);
-            emitByte(nameConst, 1);
+            int arg = resolveLocal(assignExpr->name);
+            if (arg != -1) {
+                emitByte(static_cast<uint8_t>(OpCode::OP_SET_LOCAL), 1);
+                emitByte(static_cast<uint8_t>(arg), 1);
+            } else {
+                uint8_t nameConst = identifierConstant(assignExpr->name, 1);
+                emitByte(static_cast<uint8_t>(OpCode::OP_SET_GLOBAL), 1);
+                emitByte(nameConst, 1);
+            }
         } else {
             throw std::runtime_error("Compiler Error: Unhandled expression type in compiler.");
         }
@@ -97,16 +175,21 @@ void compileStatement(Stmt* stmt) {
         if (!stmt) return;
 
         if (auto varStmt = dynamic_cast<VariableDeclaration*>(stmt)) {
+            int arg = parseVariable(varStmt->name);
+
             if (varStmt->initializer) {
                 compileExpression(varStmt->initializer.get());
             } else {
                 emitByte(static_cast<uint8_t>(OpCode::OP_NIL), 1);
             }
 
-            uint8_t nameConst = identifierConstant(varStmt->name, 1);
-            emitByte(static_cast<uint8_t>(OpCode::OP_DEFINE_GLOBAL), 1);
-            emitByte(nameConst, 1);
-        } 
+            if (scopeDepth > 0) {
+                // Local variable: value is already on stack at the local slot, no definition opcode needed
+            } else {
+                emitByte(static_cast<uint8_t>(OpCode::OP_DEFINE_GLOBAL), 1);
+                emitByte(static_cast<uint8_t>(arg), 1);
+            }
+        }
         else if (auto ifStmt = dynamic_cast<IfStatement*>(stmt)) {
             compileExpression(ifStmt->condition.get());
 
@@ -146,10 +229,13 @@ void compileStatement(Stmt* stmt) {
             emitByte(static_cast<uint8_t>(OpCode::OP_POP), 1);
         } 
         else if (auto blockStmt = dynamic_cast<BlockStatement*>(stmt)) {
+            beginScope();
             for (const auto& innerStmt : blockStmt->statements) {
                 compileStatement(innerStmt.get());
             }
+            endScope();
         }
+        
         else {
             throw std::runtime_error("Compiler Error: Unhandled statement type in compiler.");
         }
@@ -158,7 +244,7 @@ void compileStatement(Stmt* stmt) {
 public:
     bool compile(Program* program, Chunk* chunk) {
         compilingChunk = chunk;
-
+        initCompiler();
         try {
             for (const auto& stmt : program->statements) {
                 compileStatement(stmt.get());

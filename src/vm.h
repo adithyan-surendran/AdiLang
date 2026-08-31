@@ -34,6 +34,10 @@ private:
         return val;
     }
 
+    Value peek(int distance) {
+        return stack[stack.size() - 1 - distance];
+    }
+
     void printValue(const Value& value) {
         if (std::holds_alternative<double>(value)) {
             std::cout << std::get<double>(value);
@@ -210,6 +214,16 @@ public:
                     uint16_t offset = (chunk->code[ip] << 8) | chunk->code[ip + 1];
                     ip += 2;
                     ip -= offset;
+                    break;
+                }
+                case OpCode::OP_GET_LOCAL: {
+                    uint8_t slot = chunk->code[ip++];
+                    push(stack[slot]);
+                    break;
+                }
+                case OpCode::OP_SET_LOCAL: {
+                    uint8_t slot = chunk->code[ip++];
+                    stack[slot] = peek(0);
                     break;
                 }
                 default:

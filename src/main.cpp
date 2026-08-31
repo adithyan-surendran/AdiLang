@@ -68,17 +68,14 @@ std::string tokenName(TokenType type) {
 
 int main() {
     std::string source = 
-        "let x = 10;\n"
-        "if (x > 5) {\n"
-        "    print(\"x is greater than 5\");\n"
-        "} else {\n"
-        "    print(\"x is 5 or less\");\n"
+        "let globalVar = \"I am global\";\n"
+        "{\n"
+        "    let localVar = 42;\n"
+        "    print(localVar);\n"
+        "    let globalVar = \"Shadowed global\";\n"
+        "    print(globalVar);\n"
         "}\n"
-        "let i = 0;\n"
-        "while (i < 3) {\n"
-        "    print(i);\n"
-        "    i = i + 1;\n"
-        "}\n";
+        "print(globalVar);\n";
 
     Lexer lexer(source);
     auto tokens = lexer.scanTokens();
@@ -93,7 +90,7 @@ int main() {
     }
 
     std::cout << "==============================\n";
-    std::cout << "       ADILANG v0.10.1 RUN     \n";
+    std::cout << "       ADILANG v0.10.2 RUN     \n";
     std::cout << "==============================\n";
 
     Chunk chunk;
