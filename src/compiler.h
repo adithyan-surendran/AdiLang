@@ -321,15 +321,18 @@ private:
             emitBytes(static_cast<uint8_t>(OpCode::OP_CALL), static_cast<uint8_t>(callExpr->arguments.size()));
         }
         else if (auto structInst = dynamic_cast<const StructInstanceExpr*>(expr)) {
+            // 1. Get the struct blueprint
             int arg = resolveLocal(current, structInst->name);
             if (arg != -1) {
                 emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(arg));
             } else {
                 emitBytes(static_cast<uint8_t>(OpCode::OP_GET_GLOBAL), makeConstant(structInst->name));
             }
+            // 2. Compile arguments
             for (const auto& argExpr : structInst->arguments) {
                 compileExpression(argExpr.get());
             }
+            // 3. Emit instantiation opcode
             emitBytes(static_cast<uint8_t>(OpCode::OP_STRUCT_INSTANCE), static_cast<uint8_t>(structInst->arguments.size()));
         }
         else if (auto getExpr = dynamic_cast<const GetExpr*>(expr)) {

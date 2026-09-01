@@ -300,43 +300,65 @@ public:
                 }
                 case OpCode::OP_RETURN: {
                     Value result = pop();
+                    CallFrame* returningFrame = &frames[frameCount - 1];
+                    
+                    // If this was a constructor ('init'), it must implicitly return 'this' (slot 0)
+                    if (returningFrame->function->name == "init") {
+                        result = stack[returningFrame->slots];
+                    }
+
                     frameCount--;
 
                     if (frameCount == 0) {
                         return InterpretResult::INTERPRET_OK;
                     }
 
-                    CallFrame* prevFrame = &frames[frameCount];
-                    stack.resize(prevFrame->slots);
+                    stack.resize(returningFrame->slots);
                     push(result);
                     break;
                 }
                 case OpCode::OP_STRUCT_INSTANCE: {
                     uint8_t argCount = chunk->code[ip++];
                     currentFrame->ip = ip;
-                    Value callee = peek(argCount);
 
-                    if (!std::holds_alternative<std::shared_ptr<AdiStructDef>>(callee)) {
-                        std::cerr << "Runtime Error: Can only instantiate structs.\n";
-                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
-                    }
+                    // 1. The blueprint is sitting just below the arguments on the stack
+                    Value blueprintVal = peek(argCount);
+                    auto blueprint = std::get<std::shared_ptr<AdiStructDef>>(blueprintVal);
 
-                    auto structDef = std::get<std::shared_ptr<AdiStructDef>>(callee);
-                    if (argCount != structDef->fields.size()) {
-                        std::cerr << "Runtime Error: Expected " << structDef->fields.size() 
-                                  << " arguments but got " << argCount << ".\n";
-                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
-                    }
+                    // 2. Create the new instance
+                    auto instance = std::make_shared<AdiInstance>(blueprint);
 
-                    auto instance = std::make_shared<AdiInstance>(structDef);
-                    for (size_t i = 0; i < structDef->fields.size(); i++) {
-                        instance->fields[structDef->fields[i]] = peek(argCount - 1 - i);
-                    }
+                    // Replace the blueprint on the stack with the newly created instance
+                    // so it acts as 'this' (slot 0) for the constructor
+                    stack[stack.size() - argCount - 1] = instance;
 
-                    for (int i = 0; i <= argCount; i++) {
-                        pop();
+                    // 3. Look for an 'init' method
+                    auto initIt = blueprint->methods.find("init");
+                    if (initIt != blueprint->methods.end()) {
+                        auto function = initIt->second;
+
+                        if (function->arity != argCount) {
+                            std::cerr << "Runtime Error: Expected " << function->arity << " arguments but got " << argCount << ".\n";
+                            return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                        }
+
+                        if (frameCount == FRAMES_MAX) {
+                            std::cerr << "Runtime Error: Stack overflow.\n";
+                            return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                        }
+
+                        CallFrame* frame = &frames[frameCount++];
+                        frame->function = function;
+                        frame->ip = 0;
+                        frame->slots = stack.size() - argCount - 1;
+                        currentFrame = frame;
+                    } else {
+                        if (argCount > 0) {
+                            std::cerr << "Runtime Error: Struct '" << blueprint->name << "' has no init method but received " << argCount << " arguments.\n";
+                            return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                        }
+                        // If 0 args and no init, the instance is already in place on top of the stack.
                     }
-                    push(instance);
                     break;
                 }
                 case OpCode::OP_GET: {
