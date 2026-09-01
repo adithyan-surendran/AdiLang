@@ -6,19 +6,21 @@
 #include <memory>
 #include <unordered_map>
 #include <variant>
+#include <functional>
 
-// Include full definitions needed for member embedding
-#include "chunk.h"
-
+// Forward declarations
 struct StructStmt;
+struct Chunk;
 struct AdiNativeMethod;
 struct AdiArray;
 struct AdiFunction;
 struct AdiStructDef;
 struct AdiInstance;
 struct AdiBoundMethod;
+struct Environment;
 
-using ObjectValue = std::variant<
+// 1. Define the single source of truth for Value right here in object.h
+using Value = std::variant<
     double, 
     bool, 
     std::string, 
@@ -31,31 +33,36 @@ using ObjectValue = std::variant<
 >;
 
 struct AdiArray {
-    std::vector<ObjectValue> elements;
+    std::vector<Value> elements; // Use Value directly
 
     AdiArray() = default;
-    explicit AdiArray(std::vector<ObjectValue> elems) 
+    explicit AdiArray(std::vector<Value> elems) 
         : elements(std::move(elems)) {}
 };
 
 struct AdiFunction {
     int arity = 0;
     int upvalueCount = 0;
-    Chunk chunk;
+    std::shared_ptr<Chunk> chunk;
     std::string name;
+    struct FunctionStatement* declaration = nullptr;
+    std::shared_ptr<Environment> closure;
 
-    AdiFunction() = default;
+    AdiFunction() : chunk(std::make_shared<Chunk>()) {}
     
-    // Constructor matching (int arity, std::string name)
-    AdiFunction(int arity, std::string name) 
-        : arity(arity), name(std::move(name)) {}
-
-    // Overloads to gracefully absorb various compiler make_shared patterns
     explicit AdiFunction(std::string name) 
-        : name(std::move(name)) {}
+        : chunk(std::make_shared<Chunk>()), name(std::move(name)) {}
 
-    AdiFunction(std::string name, const struct FunctionStatement* /*stmt*/) 
-        : name(std::move(name)) {}
+    AdiFunction(int arity, std::string name) 
+        : arity(arity), chunk(std::make_shared<Chunk>()), name(std::move(name)) {}
+        
+    AdiFunction(std::string name, const struct FunctionStatement* stmt) 
+        : chunk(std::make_shared<Chunk>()), name(std::move(name)), declaration(const_cast<FunctionStatement*>(stmt)) {}
+    
+    AdiFunction(const struct FunctionStatement* stmt, std::shared_ptr<Environment> closureEnv)
+        : chunk(std::make_shared<Chunk>()), declaration(const_cast<FunctionStatement*>(stmt)), closure(closureEnv) {}
+
+    Value call(class Interpreter& interpreter, const std::vector<Value>& arguments);
 };
 
 struct AdiStructDef {
@@ -71,5 +78,20 @@ struct AdiStructDef {
 };
 
 using AdiStructBlueprint = AdiStructDef;
+
+using NativeMethodFn = std::function<Value(std::shared_ptr<AdiArray>, const std::vector<Value>&)>;
+
+struct AdiNativeMethod {
+    std::string name;
+    NativeMethodFn function;
+    std::shared_ptr<AdiArray> self;
+
+    AdiNativeMethod(std::string name, NativeMethodFn function, std::shared_ptr<AdiArray> self)
+        : name(name), function(function), self(self) {}
+
+    Value call(const std::vector<Value>& args) {
+        return function(self, args);
+    }
+};
 
 #endif // ADILANG_OBJECT_H

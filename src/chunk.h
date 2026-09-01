@@ -7,27 +7,7 @@
 #include <memory>
 #include <unordered_map>
 #include <stdexcept>
-#include "object.h"
-
-// Forward declarations
-struct AdiArray;
-struct AdiFunction;
-struct AdiNativeMethod;
-struct AdiStructDef;
-struct AdiInstance;
-struct AdiBoundMethod;
-
-using Value = std::variant<
-    double,
-    bool,
-    std::string,
-    std::shared_ptr<AdiArray>,
-    std::shared_ptr<AdiFunction>,
-    std::shared_ptr<AdiNativeMethod>,
-    std::shared_ptr<AdiStructDef>,
-    std::shared_ptr<AdiInstance>,
-    std::shared_ptr<AdiBoundMethod>
->;
+#include "object.h" // Value is defined here now!
 
 // Define AdiInstance here where Value is 100% a complete type
 struct AdiInstance : public std::enable_shared_from_this<AdiInstance> {

@@ -66,7 +66,7 @@ private:
 public:
     InterpretResult interpret(Chunk* targetChunk) {
         auto scriptFunction = std::make_shared<AdiFunction>("script");
-        scriptFunction->chunk = *targetChunk;
+        scriptFunction->chunk = std::make_shared<Chunk>(*targetChunk);
 
         resetStack();
         frameCount = 0;
@@ -76,12 +76,12 @@ public:
         frame->ip = 0;
         frame->slots = 0;
 
-        chunk = &scriptFunction->chunk;
+        chunk = scriptFunction->chunk.get();
         ip = 0;
 
         while (true) {
             CallFrame* currentFrame = &frames[frameCount - 1];
-            chunk = &currentFrame->function->chunk;
+            chunk = currentFrame->function->chunk.get();
             ip = currentFrame->ip;
 
             if (ip >= chunk->code.size()) {

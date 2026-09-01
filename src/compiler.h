@@ -40,7 +40,7 @@ private:
     }
 
     Chunk* currentChunk() {
-        return &current->function->chunk;
+        return current->function->chunk.get();
     }
 
     void emitByte(uint8_t byte, int line = 0) {
@@ -391,7 +391,7 @@ public:
 
     bool compile(const Program* program, Chunk* chunk) {
         auto scriptFunction = std::make_shared<AdiFunction>("script");
-        scriptFunction->chunk = *chunk;
+        scriptFunction->chunk = std::make_shared<Chunk>(*chunk);
         initFunction(scriptFunction);
 
         try {
@@ -399,7 +399,7 @@ public:
                 compileNode(stmt.get());
             }
             auto compiledFunction = endCompiler();
-            *chunk = compiledFunction->chunk;
+            *chunk = *compiledFunction->chunk;
             return true;
         } catch (const std::runtime_error& e) {
             std::cerr << "Compiler Error: " << e.what() << "\n";

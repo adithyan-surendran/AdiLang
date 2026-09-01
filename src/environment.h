@@ -10,7 +10,7 @@
 #include <iostream>
 #include <functional>
 
-// Include Chunk, Value definitions, and Object structures first
+// Include Chunk and Object structures first (Value and AdiFunction live here)
 #include "chunk.h"
 #include "object.h"
 
@@ -18,42 +18,6 @@
 struct FunctionStatement;
 class Interpreter;
 class Environment;
-
-struct AdiArray {
-    std::vector<Value> elements;
-    explicit AdiArray(std::vector<Value> elements) : elements(std::move(elements)) {}
-};
-
-struct AdiFunction {
-    const FunctionStatement* declaration = nullptr;
-    std::shared_ptr<Environment> closure;
-    Chunk chunk;
-    int arity = 0;
-    std::string name;
-
-    AdiFunction(const FunctionStatement* declaration, std::shared_ptr<Environment> closure)
-        : declaration(declaration), closure(closure) {}
-
-    AdiFunction(std::string name = "", const FunctionStatement* decl = nullptr)
-        : declaration(decl), name(name) {}
-
-    Value call(Interpreter& interpreter, const std::vector<Value>& arguments);
-};
-
-using NativeMethodFn = std::function<Value(std::shared_ptr<AdiArray>, const std::vector<Value>&)>;
-
-struct AdiNativeMethod {
-    std::string name;
-    NativeMethodFn function;
-    std::shared_ptr<AdiArray> self;
-
-    AdiNativeMethod(std::string name, NativeMethodFn function, std::shared_ptr<AdiArray> self)
-        : name(name), function(function), self(self) {}
-
-    Value call(const std::vector<Value>& args) {
-        return function(self, args);
-    }
-};
 
 // Helper to print a Value
 inline void printValue(const Value& val) {
