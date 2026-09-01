@@ -103,6 +103,7 @@ public:
     {
     }
 };
+
 // --- Array Literal Expression: [element1, element2, ...] ---
 class ArrayExpr : public Expr {
 public:
@@ -131,6 +132,47 @@ public:
 
     IndexSetExpr(std::unique_ptr<Expr> target, std::unique_ptr<Expr> index, std::unique_ptr<Expr> value)
         : target(std::move(target)), index(std::move(index)), value(std::move(value)) {}
+};
+
+// --- Call Expression: callee(arg1, arg2) ---
+class CallExpr : public Expr {
+public:
+    std::unique_ptr<Expr> callee;
+    std::vector<std::unique_ptr<Expr>> arguments;
+
+    CallExpr(std::unique_ptr<Expr> callee, std::vector<std::unique_ptr<Expr>> arguments)
+        : callee(std::move(callee)), arguments(std::move(arguments)) {}
+};
+
+// --- Struct Instance Creation Expression: Point(10, 20) ---
+class StructInstanceExpr : public Expr {
+public:
+    std::string name;
+    std::vector<std::unique_ptr<Expr>> arguments;
+
+    StructInstanceExpr(std::string name, std::vector<std::unique_ptr<Expr>> arguments)
+        : name(std::move(name)), arguments(std::move(arguments)) {}
+};
+
+// --- Get / Property Access Expression: obj.field ---
+class GetExpr : public Expr {
+public:
+    std::unique_ptr<Expr> object;
+    std::string name;
+
+    GetExpr(std::unique_ptr<Expr> object, std::string name)
+        : object(std::move(object)), name(std::move(name)) {}
+};
+
+// --- Set / Property Assignment Expression: obj.field = value ---
+class SetExpr : public Expr {
+public:
+    std::unique_ptr<Expr> object;
+    std::string name;
+    std::unique_ptr<Expr> value;
+
+    SetExpr(std::unique_ptr<Expr> object, std::string name, std::unique_ptr<Expr> value)
+        : object(std::move(object)), name(std::move(name)), value(std::move(value)) {}
 };
 
 // ==========================================
@@ -234,15 +276,6 @@ public:
     }
 };
 
-// ==========================================
-// 3. Root Node: Program
-// ==========================================
-class Program
-{
-public:
-    std::vector<std::unique_ptr<Stmt>> statements;
-};
-
 // --- Function Statement: fn name(param1, param2) { body } ---
 class FunctionStatement : public Stmt {
 public:
@@ -263,50 +296,28 @@ public:
         : value(std::move(value)) {}
 };
 
-// --- Call Expression: callee(arg1, arg2) ---
-class CallExpr : public Expr {
+// --- Struct Declaration Statement: struct Point { x, y, method() {} } ---
+class StructStmt : public Stmt {
 public:
-    std::unique_ptr<Expr> callee;
-    std::vector<std::unique_ptr<Expr>> arguments;
-
-    CallExpr(std::unique_ptr<Expr> callee, std::vector<std::unique_ptr<Expr>> arguments)
-        : callee(std::move(callee)), arguments(std::move(arguments)) {}
-};
-
-// 1. Struct Declaration Statement: struct Point { x, y }
-struct StructStmt : public Stmt {
     std::string name;
     std::vector<std::string> fields;
+    std::vector<std::shared_ptr<FunctionStatement>> methods;
 
-    StructStmt(std::string name, std::vector<std::string> fields)
-        : name(std::move(name)), fields(std::move(fields)) {}
+    StructStmt(std::string name, 
+               std::vector<std::string> fields, 
+               std::vector<std::shared_ptr<FunctionStatement>> methods)
+        : name(std::move(name)), 
+          fields(std::move(fields)), 
+          methods(std::move(methods)) {}
 };
 
-// 2. Struct Instance Creation Expression: Point(10, 20)
-struct StructInstanceExpr : public Expr {
-    std::string name;
-    std::vector<std::unique_ptr<Expr>> arguments;
-
-    StructInstanceExpr(std::string name, std::vector<std::unique_ptr<Expr>> arguments)
-        : name(std::move(name)), arguments(std::move(arguments)) {}
+// ==========================================
+// 3. Root Node: Program
+// ==========================================
+class Program
+{
+public:
+    std::vector<std::unique_ptr<Stmt>> statements;
 };
 
-// 3. Get / Property Access Expression: obj.field or arr.length
-struct GetExpr : public Expr {
-    std::unique_ptr<Expr> object;
-    std::string name;
-
-    GetExpr(std::unique_ptr<Expr> object, std::string name)
-        : object(std::move(object)), name(std::move(name)) {}
-};
-
-// 4. Set / Property Assignment Expression: obj.field = value
-struct SetExpr : public Expr {
-    std::unique_ptr<Expr> object;
-    std::string name;
-    std::unique_ptr<Expr> value;
-
-    SetExpr(std::unique_ptr<Expr> object, std::string name, std::unique_ptr<Expr> value)
-        : object(std::move(object)), name(std::move(name)), value(std::move(value)) {}
-};
 #endif // ADILANG_AST_H

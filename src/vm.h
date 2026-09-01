@@ -265,17 +265,24 @@ public:
                 case OpCode::OP_CALL: {
                     uint8_t argCount = chunk->code[ip++];
                     currentFrame->ip = ip;
+                    
                     Value callee = peek(argCount);
+                    std::shared_ptr<AdiFunction> function;
 
-                    if (!std::holds_alternative<std::shared_ptr<AdiFunction>>(callee)) {
-                        std::cerr << "Runtime Error: Can only call functions.\n";
+                    if (std::holds_alternative<std::shared_ptr<AdiBoundMethod>>(callee)) {
+                        auto bound = std::get<std::shared_ptr<AdiBoundMethod>>(callee);
+                        // Replace the bound method on the stack with the receiver instance ('this')
+                        stack[stack.size() - argCount - 1] = bound->receiver;
+                        function = bound->method;
+                    } else if (std::holds_alternative<std::shared_ptr<AdiFunction>>(callee)) {
+                        function = std::get<std::shared_ptr<AdiFunction>>(callee);
+                    } else {
+                        std::cerr << "Runtime Error: Can only call functions and methods.\n";
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
-                    auto function = std::get<std::shared_ptr<AdiFunction>>(callee);
-                    if (argCount != function->arity) {
-                        std::cerr << "Runtime Error: Expected " << function->arity 
-                                  << " arguments but got " << argCount << ".\n";
+                    if (function->arity != argCount) {
+                        std::cerr << "Runtime Error: Expected " << function->arity << " arguments but got " << argCount << ".\n";
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -288,6 +295,7 @@ public:
                     frame->function = function;
                     frame->ip = 0;
                     frame->slots = stack.size() - argCount - 1;
+                    currentFrame = frame;
                     break;
                 }
                 case OpCode::OP_RETURN: {
@@ -343,12 +351,17 @@ public:
                     }
 
                     auto instance = std::get<std::shared_ptr<AdiInstance>>(targetVal);
-                    if (instance->fields.find(name) == instance->fields.end()) {
+
+                    if (instance->fields.find(name) != instance->fields.end()) {
+                        push(instance->fields[name]);
+                    } else if (instance->blueprint->methods.find(name) != instance->blueprint->methods.end()) {
+                        auto method = instance->blueprint->methods[name];
+                        auto bound = std::make_shared<AdiBoundMethod>(instance, method);
+                        push(bound);
+                    } else {
                         std::cerr << "Runtime Error: Undefined property '" << name << "'.\n";
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
-
-                    push(instance->fields[name]);
                     break;
                 }
                 case OpCode::OP_SET: {

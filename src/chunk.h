@@ -15,6 +15,7 @@ struct AdiFunction;
 struct AdiNativeMethod;
 struct AdiStructDef;
 struct AdiInstance;
+struct AdiBoundMethod;
 
 using Value = std::variant<
     double,
@@ -24,7 +25,8 @@ using Value = std::variant<
     std::shared_ptr<AdiFunction>,
     std::shared_ptr<AdiNativeMethod>,
     std::shared_ptr<AdiStructDef>,
-    std::shared_ptr<AdiInstance>
+    std::shared_ptr<AdiInstance>,
+    std::shared_ptr<AdiBoundMethod>
 >;
 
 // Define AdiInstance here where Value is 100% a complete type
@@ -45,6 +47,14 @@ struct AdiInstance : public std::enable_shared_from_this<AdiInstance> {
     void set(const std::string& name, Value value) {
         fields[name] = value;
     }
+};
+
+struct AdiBoundMethod {
+    std::shared_ptr<AdiInstance> receiver;
+    std::shared_ptr<AdiFunction> method;
+    
+    AdiBoundMethod(std::shared_ptr<AdiInstance> rec, std::shared_ptr<AdiFunction> meth) 
+        : receiver(rec), method(meth) {}
 };
 
 enum class OpCode : uint8_t {

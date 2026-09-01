@@ -230,7 +230,39 @@ private:
         }
         else if (auto structStmt = dynamic_cast<const StructStmt*>(stmt)) {
             uint8_t nameConst = makeConstant(structStmt->name);
+            
+            // Create the struct definition object (assuming it holds a methods map)
             auto structDef = std::make_shared<AdiStructDef>(structStmt->name, structStmt->fields);
+
+            // Compile each method defined inside the struct
+            for (const auto& methodStmt : structStmt->methods) {
+                auto function = std::make_shared<AdiFunction>(methodStmt->name, methodStmt.get());
+                function->arity = static_cast<int>(methodStmt->params.size());
+                
+                FunctionCompiler* enclosing = current;
+                initFunction(function);
+                
+                // Bind slot 0 explicitly to "this" for methods
+                current->locals[0].name = "this";
+                current->locals[0].depth = 0;
+                
+                beginScope();
+                for (const auto& param : methodStmt->params) {
+                    declareVariable(param);
+                    markInitialized();
+                }
+                
+                for (const auto& s : methodStmt->body->statements) {
+                    compileNode(s.get());
+                }
+                
+                auto compiledFunction = endCompiler();
+                current = enclosing;
+
+                // Store compiled method in the struct definition's method map
+                structDef->methods[methodStmt->name] = compiledFunction;
+            }
+
             emitConstant(structDef);
             defineVariable(nameConst);
         }

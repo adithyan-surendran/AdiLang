@@ -630,14 +630,47 @@ std::unique_ptr<Stmt> Parser::structDeclaration() {
     consume(TokenType::LEFT_BRACE, "Expected '{' before struct body.");
 
     std::vector<std::string> fields;
+    std::vector<std::shared_ptr<FunctionStatement>> methods;
+
     if (!check(TokenType::RIGHT_BRACE)) {
         do {
-            Token fieldToken = consume(TokenType::IDENTIFIER, "Expected field name.");
-            fields.push_back(fieldToken.lexeme);
-        } while (match(TokenType::COMMA));
+            Token identifierToken = consume(TokenType::IDENTIFIER, "Expected field or method name.");
+            
+            // Check if it's a method declaration (followed by '(')
+            if (match(TokenType::LEFT_PAREN)) {
+                std::string methodName = identifierToken.lexeme;
+                std::vector<std::string> parameters;
+                
+                if (!check(TokenType::RIGHT_PAREN)) {
+                    do {
+                        if (parameters.size() >= 255) {
+                            throw std::runtime_error("Parser Error: Cannot have more than 255 parameters.");
+                        }
+                        Token paramToken = consume(TokenType::IDENTIFIER, "Expected parameter name.");
+                        parameters.push_back(paramToken.lexeme);
+                    } while (match(TokenType::COMMA));
+                }
+                
+                consume(TokenType::RIGHT_PAREN, "Expected ')' after parameters.");
+                consume(TokenType::LEFT_BRACE, "Expected '{' before method body.");
+                
+                auto bodyStmt = block(); 
+                auto body = std::unique_ptr<BlockStatement>(dynamic_cast<BlockStatement*>(bodyStmt.release()));
+
+                methods.push_back(std::make_shared<FunctionStatement>(methodName, std::move(parameters), std::move(body)));
+            } else {
+                // Regular field
+                fields.push_back(identifierToken.lexeme);
+            }
+
+            // Optional comma or semicolon separator between fields/methods
+            match(TokenType::COMMA);
+            match(TokenType::SEMICOLON);
+
+        } while (!check(TokenType::RIGHT_BRACE) && !check(TokenType::END_OF_FILE));
     }
 
     consume(TokenType::RIGHT_BRACE, "Expected '}' after struct body.");
     match(TokenType::SEMICOLON);
-    return std::make_unique<StructStmt>(name, std::move(fields));
+    return std::make_unique<StructStmt>(name, std::move(fields), std::move(methods));
 }

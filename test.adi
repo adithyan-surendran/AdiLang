@@ -1,0 +1,17 @@
+struct Vector {
+    x,
+    y,
+    printCoords() {
+        print(this.x);
+        print(this.y);
+    },
+    scale(factor) {
+        this.x = this.x * factor;
+        this.y = this.y * factor;
+    }
+}
+
+let v = Vector(3, 4);
+v.printCoords();
+v.scale(10);
+v.printCoords();
