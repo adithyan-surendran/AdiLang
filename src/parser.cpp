@@ -401,6 +401,30 @@ std::unique_ptr<Expr> Parser::primary()
         return expr;
     }
 
+    // --- MOVED UP HERE: Parse super expressions like super.init(name) ---
+    if (match(TokenType::SUPER)) {
+        Token keyword = previous();
+        consume(TokenType::DOT, "Expected '.' after 'super'.");
+        Token methodToken = consume(TokenType::IDENTIFIER, "Expected superclass method name.");
+        std::string methodName = methodToken.lexeme;
+
+        std::vector<std::unique_ptr<Expr>> arguments;
+        if (match(TokenType::LEFT_PAREN)) {
+            if (!check(TokenType::RIGHT_PAREN)) {
+                do {
+                    if (arguments.size() >= 255) {
+                        throw std::runtime_error("Parser Error: Cannot have more than 255 arguments.");
+                    }
+                    arguments.push_back(expression());
+                } while (match(TokenType::COMMA));
+            }
+            consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
+        }
+
+        return std::make_unique<SuperExpr>(methodName, std::move(arguments));
+    }
+    // ------------------------------------------------------------------
+
     std::cerr << "Parser Error: Expected expression\n";
     return nullptr;
 }
@@ -627,10 +651,17 @@ std::unique_ptr<Stmt> Parser::structDeclaration() {
     std::string name = nameToken.lexeme;
     structNames.insert(name);
 
+    // Optional inheritance check: struct Dog < Animal
+    std::optional<std::string> superclass = std::nullopt;
+    if (match(TokenType::LESS)) {
+        Token superclassToken = consume(TokenType::IDENTIFIER, "Expected superclass name after '<'.");
+        superclass = superclassToken.lexeme;
+    }
+
     consume(TokenType::LEFT_BRACE, "Expected '{' before struct body.");
 
     std::vector<std::string> fields;
-    std::vector<std::shared_ptr<FunctionStatement>> methods;
+    std::vector<std::shared_ptr<FunctionStatement>> methods; // Matches FunctionStatement
 
     if (!check(TokenType::RIGHT_BRACE)) {
         do {
@@ -672,5 +703,6 @@ std::unique_ptr<Stmt> Parser::structDeclaration() {
 
     consume(TokenType::RIGHT_BRACE, "Expected '}' after struct body.");
     match(TokenType::SEMICOLON);
-    return std::make_unique<StructStmt>(name, std::move(fields), std::move(methods));
+
+    return std::make_unique<StructStmt>(name, std::move(superclass), std::move(fields), std::move(methods));
 }

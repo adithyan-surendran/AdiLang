@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <optional>
 
 // ==========================================
 // 1. Base Expression Node & Derived Classes
@@ -175,6 +176,16 @@ public:
         : object(std::move(object)), name(std::move(name)), value(std::move(value)) {}
 };
 
+// --- Super Expression: super.method(args) ---
+class SuperExpr : public Expr {
+public:
+    std::string method;
+    std::vector<std::unique_ptr<Expr>> arguments;
+
+    SuperExpr(std::string method, std::vector<std::unique_ptr<Expr>> arguments)
+        : method(std::move(method)), arguments(std::move(arguments)) {}
+};
+
 // ==========================================
 // 2. Base Statement Node & Derived Classes
 // ==========================================
@@ -296,17 +307,20 @@ public:
         : value(std::move(value)) {}
 };
 
-// --- Struct Declaration Statement: struct Point { x, y, method() {} } ---
+// --- Struct Declaration Statement: struct Point < Super { x, y, method() {} } ---
 class StructStmt : public Stmt {
 public:
     std::string name;
+    std::optional<std::string> superclass;
     std::vector<std::string> fields;
     std::vector<std::shared_ptr<FunctionStatement>> methods;
 
     StructStmt(std::string name, 
+               std::optional<std::string> superclass,
                std::vector<std::string> fields, 
                std::vector<std::shared_ptr<FunctionStatement>> methods)
         : name(std::move(name)), 
+          superclass(std::move(superclass)),
           fields(std::move(fields)), 
           methods(std::move(methods)) {}
 };

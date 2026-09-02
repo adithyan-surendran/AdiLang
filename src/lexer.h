@@ -24,6 +24,7 @@ enum class TokenType {
     FN,
     RETURN,
     STRUCT,
+    SUPER,
 
     // Operators
     PLUS,

@@ -67,16 +67,17 @@ struct AdiFunction {
 
 struct AdiStructDef {
     std::string name;
+    std::shared_ptr<AdiStructDef> superclass; 
     std::vector<std::string> fields;
     std::unordered_map<std::string, std::shared_ptr<AdiFunction>> methods;
 
     AdiStructDef() = default;
-    AdiStructDef(std::string name, std::vector<std::string> fields)
-        : name(std::move(name)), fields(std::move(fields)) {}
+    
+    AdiStructDef(std::string name, std::vector<std::string> fields, std::shared_ptr<AdiStructDef> superclass = nullptr)
+        : name(std::move(name)), superclass(std::move(superclass)), fields(std::move(fields)) {}
     
     explicit AdiStructDef(const StructStmt* stmt);
 };
-
 using AdiStructBlueprint = AdiStructDef;
 
 using NativeMethodFn = std::function<Value(std::shared_ptr<AdiArray>, const std::vector<Value>&)>;

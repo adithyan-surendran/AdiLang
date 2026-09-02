@@ -17,8 +17,12 @@ struct Local {
 
 class Compiler {
 private:
+    std::unordered_map<std::string, std::shared_ptr<AdiStructDef>> definedStructs;
+    
     struct ClassCompiler {
         ClassCompiler* enclosing = nullptr;
+        bool hasSuperclass = false; 
+        std::string superclassName; // Stores the parent struct name
     };
 
     struct FunctionCompiler {
@@ -231,10 +235,43 @@ private:
         else if (auto structStmt = dynamic_cast<const StructStmt*>(stmt)) {
             uint8_t nameConst = makeConstant(structStmt->name);
             
-            // Create the struct definition object (assuming it holds a methods map)
-            auto structDef = std::make_shared<AdiStructDef>(structStmt->name, structStmt->fields);
+            // 1. Handle Superclass Lookup & Inheritance
+            std::shared_ptr<AdiStructDef> parentDef = nullptr;
+            if (structStmt->superclass.has_value()) {
+                std::string superclassName = structStmt->superclass.value();
+                if (definedStructs.find(superclassName) == definedStructs.end()) {
+                    throw std::runtime_error("Compiler Error: Undefined superclass '" + superclassName + "'.");
+                }
+                parentDef = definedStructs[superclassName];
+            }
 
-            // Compile each method defined inside the struct
+            // 2. Combine inherited fields with child fields
+            std::vector<std::string> combinedFields;
+            if (parentDef != nullptr) {
+                combinedFields = parentDef->fields;
+            }
+            for (const auto& field : structStmt->fields) {
+                combinedFields.push_back(field);
+            }
+
+            // 3. Create the struct definition object, linking the superclass
+            auto structDef = std::make_shared<AdiStructDef>(structStmt->name, combinedFields, parentDef);
+
+            // 4. Inherit parent methods as a baseline
+            if (parentDef != nullptr) {
+                structDef->methods = parentDef->methods;
+            }
+
+            // 5. Setup ClassCompiler context for methods (enabling super support)
+            ClassCompiler classCompiler;
+            classCompiler.enclosing = currentClass;
+            classCompiler.hasSuperclass = structStmt->superclass.has_value();
+            if (structStmt->superclass.has_value()) {
+                classCompiler.superclassName = structStmt->superclass.value();
+            }
+            currentClass = &classCompiler;
+
+            // 6. Compile each method defined inside the child struct (overriding parent methods if names match)
             for (const auto& methodStmt : structStmt->methods) {
                 auto function = std::make_shared<AdiFunction>(methodStmt->name, methodStmt.get());
                 function->arity = static_cast<int>(methodStmt->params.size());
@@ -259,9 +296,14 @@ private:
                 auto compiledFunction = endCompiler();
                 current = enclosing;
 
-                // Store compiled method in the struct definition's method map
+                // Store/Override compiled method in the struct definition's method map
                 structDef->methods[methodStmt->name] = compiledFunction;
             }
+
+            currentClass = currentClass->enclosing;
+
+            // 7. Register the struct in the compiler's defined structs map
+            definedStructs[structStmt->name] = structDef;
 
             emitConstant(structDef);
             defineVariable(nameConst);
@@ -343,6 +385,36 @@ private:
             compileExpression(setExpr->value.get());
             compileExpression(setExpr->object.get());
             emitBytes(static_cast<uint8_t>(OpCode::OP_SET), makeConstant(setExpr->name));
+        }
+        else if (auto superExpr = dynamic_cast<const SuperExpr*>(expr)) {
+            if (currentClass == nullptr || !currentClass->hasSuperclass) {
+                throw std::runtime_error("Compiler Error: Can't use 'super' outside of a subclass method.");
+            }
+
+            // 1. Load 'this' (slot 0) as receiver instance
+            int thisSlot = resolveLocal(current, "this");
+            if (thisSlot != -1) {
+                emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(thisSlot));
+            } else {
+                throw std::runtime_error("Compiler Error: Internal error - 'this' not found.");
+            }
+
+            // 2. Load the superclass variable (local or global)
+            int superArg = resolveLocal(current, currentClass->superclassName);
+            if (superArg != -1) {
+                emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(superArg));
+            } else {
+                emitBytes(static_cast<uint8_t>(OpCode::OP_GET_GLOBAL), makeConstant(currentClass->superclassName));
+            }
+
+            // 3. Compile arguments for super.init(...)
+            for (const auto& arg : superExpr->arguments) {
+                compileExpression(arg.get());
+            }
+
+            // 4. Emit OP_SUPER instruction (Method name constant + argument count)
+            emitBytes(static_cast<uint8_t>(OpCode::OP_SUPER), makeConstant(superExpr->method));
+            emitByte(static_cast<uint8_t>(superExpr->arguments.size()));
         }
         else if (auto arrExpr = dynamic_cast<const ArrayExpr*>(expr)) {
             for (const auto& element : arrExpr->elements) {

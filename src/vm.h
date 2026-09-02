@@ -404,7 +404,70 @@ public:
                     break;
                 }
                 case OpCode::OP_STRUCT: {
-                    // Handled via constant table / globals during compilation passes
+                    uint8_t nameIndex = chunk->code[ip++];
+                    currentFrame->ip = ip;
+                    std::string name = std::get<std::string>(chunk->constants[nameIndex]);
+
+                    // 1. Pop the superclass from the stack (pushed just before OP_STRUCT)
+                    Value superclassVal = pop();
+                    std::shared_ptr<AdiStructDef> superclass = nullptr;
+                    if (std::holds_alternative<std::shared_ptr<AdiStructDef>>(superclassVal)) {
+                        superclass = std::get<std::shared_ptr<AdiStructDef>>(superclassVal);
+                    }
+
+                    // 2. Create the new struct definition, passing the superclass link
+                    auto structDef = std::make_shared<AdiStructDef>(name, std::vector<std::string>{}, superclass);
+
+                    // 3. If there is a superclass, inherit its baseline methods and fields
+                    if (superclass != nullptr) {
+                        structDef->fields = superclass->fields;
+                        structDef->methods = superclass->methods;
+                    }
+
+                    // 4. Store the struct definition globally (or in the current scope)
+                    globals[name] = structDef;
+                    push(structDef);
+                    break;
+                }
+                case OpCode::OP_SUPER: {
+                    uint8_t nameIndex = chunk->code[ip++];
+                    uint8_t argCount = chunk->code[ip++];
+                    currentFrame->ip = ip;
+
+                    std::string methodName = std::get<std::string>(chunk->constants[nameIndex]);
+
+                    // Stack layout: [ ... | receiver (this) | superclass blueprint | arg1 | arg2 | ... ]
+                    Value superclassVal = peek(argCount);
+                    auto superclass = std::get<std::shared_ptr<AdiStructDef>>(superclassVal);
+
+                    auto methodIt = superclass->methods.find(methodName);
+                    if (methodIt == superclass->methods.end()) {
+                        std::cerr << "Runtime Error: Superclass '" << superclass->name << "' has no method '" << methodName << "'.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    auto function = methodIt->second;
+                    if (function->arity != argCount) {
+                        std::cerr << "Runtime Error: Expected " << function->arity << " arguments for super." << methodName << " but got " << argCount << ".\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    // Place receiver ('this') into slot 0 position for the new frame
+                    size_t receiverSlot = stack.size() - argCount - 1;
+                    Value receiver = peek(argCount + 1);
+                    stack[receiverSlot] = receiver;
+                    stack.erase(stack.begin() + receiverSlot - 1);
+
+                    if (frameCount == FRAMES_MAX) {
+                        std::cerr << "Runtime Error: Stack overflow.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    CallFrame* frame = &frames[frameCount++];
+                    frame->function = function;
+                    frame->ip = 0;
+                    frame->slots = stack.size() - argCount - 1;
+                    currentFrame = frame;
                     break;
                 }
                 case OpCode::OP_ARRAY: {

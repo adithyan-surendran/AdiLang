@@ -335,6 +335,9 @@ void Lexer::identifier() {
     else if (text == "struct")
         addToken(TokenType::STRUCT);
 
+    else if (text == "super")
+        addToken(TokenType::SUPER);
+
     else
         addToken(TokenType::IDENTIFIER);
 }

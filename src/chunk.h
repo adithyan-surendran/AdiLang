@@ -70,7 +70,8 @@ enum class OpCode : uint8_t {
     OP_SET,
     OP_ARRAY,
     OP_INDEX_GET,
-    OP_INDEX_SET
+    OP_INDEX_SET,
+    OP_SUPER
 };
 
 struct Chunk {

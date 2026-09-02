@@ -1,12 +1,39 @@
-struct Point {
-    x, y
+struct Shape {
+    color,
 
-    init(x, y) {
-        this.x = x;
-        this.y = y;
+    init(color) {
+        this.color = color;
     }
 }
 
-let p = Point(10, 20);
-print(p.x);
-print(p.y);
+struct Rectangle < Shape {
+    width,
+    height,
+
+    init(color, width, height) {
+        super.init(color);
+        this.width = width;
+        this.height = height;
+    }
+
+    area() {
+        return this.width * this.height;
+    }
+}
+
+// 3rd generation: Square extends Rectangle
+struct Square < Rectangle {
+    init(color, sideSize) {
+        // Delegate up to Rectangle, passing sideSize for both width and height
+        super.init(color, sideSize, sideSize);
+    }
+}
+
+let mySquare = Square("Green", 7);
+
+print("Square Color:");
+print(mySquare.color);  // Inherited from Shape via Rectangle
+print("Square Width:");
+print(mySquare.width);  // Inherited from Rectangle
+print("Square Area:");
+print(mySquare.area()); // Inherited method from Rectangle using overridden fields
