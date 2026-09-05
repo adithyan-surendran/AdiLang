@@ -9,9 +9,9 @@
 #include <unordered_map>
 
 struct CallFrame {
-    std::shared_ptr<AdiFunction> function;
-    size_t ip;
-    size_t slots; // Stack offset for this function's locals
+    std::shared_ptr<AdiClosure> closure;
+    size_t ip = 0;
+    size_t slots = 0; // Stack offset for this function's locals
 };
 
 enum class InterpretResult {
@@ -32,9 +32,46 @@ private:
     size_t ip; // Instruction Pointer
     std::vector<Value> stack;
     std::unordered_map<std::string, Value> globals;
+    AdiUpvalue* openUpvalues = nullptr;
+
+    std::shared_ptr<AdiUpvalue> captureUpvalue(Value* local) {
+        AdiUpvalue* prevUpvalue = nullptr;
+        AdiUpvalue* currentUpvalue = openUpvalues;
+
+        while (currentUpvalue != nullptr && currentUpvalue->location > local) {
+            prevUpvalue = currentUpvalue;
+            currentUpvalue = currentUpvalue->next;
+        }
+
+        if (currentUpvalue != nullptr && currentUpvalue->location == local) {
+            return std::shared_ptr<AdiUpvalue>(currentUpvalue, [](AdiUpvalue*){});
+        }
+
+        auto createdUpvalue = std::make_shared<AdiUpvalue>();
+        createdUpvalue->location = local;
+        createdUpvalue->next = currentUpvalue;
+
+        if (prevUpvalue == nullptr) {
+            openUpvalues = createdUpvalue.get();
+        } else {
+            prevUpvalue->next = createdUpvalue.get();
+        }
+
+        return createdUpvalue;
+    }
+
+    void closeUpvalues(Value* last) {
+        while (openUpvalues != nullptr && openUpvalues->location >= last) {
+            AdiUpvalue* upvalue = openUpvalues;
+            upvalue->closed = *upvalue->location;
+            upvalue->location = &upvalue->closed;
+            openUpvalues = upvalue->next;
+        }
+    }
 
     void resetStack() {
         stack.clear();
+        stack.reserve(STACK_MAX);
     }
 
     void push(Value value) {
@@ -58,6 +95,10 @@ private:
             std::cout << (std::get<bool>(value) ? "true" : "false");
         } else if (std::holds_alternative<std::string>(value)) {
             std::cout << std::get<std::string>(value);
+        } else if (std::holds_alternative<std::shared_ptr<AdiFunction>>(value)) {
+            std::cout << "<fn " << std::get<std::shared_ptr<AdiFunction>>(value)->name << ">";
+        } else if (std::holds_alternative<std::shared_ptr<AdiClosure>>(value)) {
+            std::cout << "<fn " << std::get<std::shared_ptr<AdiClosure>>(value)->function->name << ">";
         } else {
             std::cout << "nil";
         }
@@ -68,11 +109,15 @@ public:
         auto scriptFunction = std::make_shared<AdiFunction>("script");
         scriptFunction->chunk = std::make_shared<Chunk>(*targetChunk);
 
+        auto scriptClosure = std::make_shared<AdiClosure>();
+        scriptClosure->function = scriptFunction;
+
         resetStack();
         frameCount = 0;
+        openUpvalues = nullptr;
 
         CallFrame* frame = &frames[frameCount++];
-        frame->function = scriptFunction;
+        frame->closure = scriptClosure;
         frame->ip = 0;
         frame->slots = 0;
 
@@ -81,7 +126,7 @@ public:
 
         while (true) {
             CallFrame* currentFrame = &frames[frameCount - 1];
-            chunk = currentFrame->function->chunk.get();
+            chunk = currentFrame->closure->function->chunk.get();
             ip = currentFrame->ip;
 
             if (ip >= chunk->code.size()) {
@@ -230,7 +275,8 @@ public:
                 case OpCode::OP_JUMP: {
                     uint16_t offset = (chunk->code[ip] << 8) | chunk->code[ip + 1];
                     ip += 2;
-                    currentFrame->ip = ip + offset;
+                    currentFrame->ip = ip;
+                    currentFrame->ip += offset;
                     break;
                 }
                 case OpCode::OP_JUMP_IF_FALSE: {
@@ -247,7 +293,8 @@ public:
                 case OpCode::OP_LOOP: {
                     uint16_t offset = (chunk->code[ip] << 8) | chunk->code[ip + 1];
                     ip += 2;
-                    currentFrame->ip = ip - offset;
+                    currentFrame->ip = ip;
+                    currentFrame->ip -= offset;
                     break;
                 }
                 case OpCode::OP_GET_LOCAL: {
@@ -267,22 +314,22 @@ public:
                     currentFrame->ip = ip;
                     
                     Value callee = peek(argCount);
-                    std::shared_ptr<AdiFunction> function;
+                    std::shared_ptr<AdiClosure> closure;
 
                     if (std::holds_alternative<std::shared_ptr<AdiBoundMethod>>(callee)) {
                         auto bound = std::get<std::shared_ptr<AdiBoundMethod>>(callee);
-                        // Replace the bound method on the stack with the receiver instance ('this')
                         stack[stack.size() - argCount - 1] = bound->receiver;
-                        function = bound->method;
-                    } else if (std::holds_alternative<std::shared_ptr<AdiFunction>>(callee)) {
-                        function = std::get<std::shared_ptr<AdiFunction>>(callee);
+                        closure = std::make_shared<AdiClosure>();
+                        closure->function = bound->method;
+                    } else if (std::holds_alternative<std::shared_ptr<AdiClosure>>(callee)) {
+                        closure = std::get<std::shared_ptr<AdiClosure>>(callee);
                     } else {
                         std::cerr << "Runtime Error: Can only call functions and methods.\n";
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
-                    if (function->arity != argCount) {
-                        std::cerr << "Runtime Error: Expected " << function->arity << " arguments but got " << argCount << ".\n";
+                    if (closure->function->arity != argCount) {
+                        std::cerr << "Runtime Error: Expected " << closure->function->arity << " arguments but got " << argCount << ".\n";
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -292,7 +339,7 @@ public:
                     }
 
                     CallFrame* frame = &frames[frameCount++];
-                    frame->function = function;
+                    frame->closure = closure;
                     frame->ip = 0;
                     frame->slots = stack.size() - argCount - 1;
                     currentFrame = frame;
@@ -302,8 +349,9 @@ public:
                     Value result = pop();
                     CallFrame* returningFrame = &frames[frameCount - 1];
                     
-                    // If this was a constructor ('init'), it must implicitly return 'this' (slot 0)
-                    if (returningFrame->function->name == "init") {
+                    closeUpvalues(&stack[returningFrame->slots]);
+
+                    if (returningFrame->closure->function->name == "init") {
                         result = stack[returningFrame->slots];
                     }
 
@@ -321,18 +369,12 @@ public:
                     uint8_t argCount = chunk->code[ip++];
                     currentFrame->ip = ip;
 
-                    // 1. The blueprint is sitting just below the arguments on the stack
                     Value blueprintVal = peek(argCount);
                     auto blueprint = std::get<std::shared_ptr<AdiStructDef>>(blueprintVal);
-
-                    // 2. Create the new instance
                     auto instance = std::make_shared<AdiInstance>(blueprint);
 
-                    // Replace the blueprint on the stack with the newly created instance
-                    // so it acts as 'this' (slot 0) for the constructor
                     stack[stack.size() - argCount - 1] = instance;
 
-                    // 3. Look for an 'init' method
                     auto initIt = blueprint->methods.find("init");
                     if (initIt != blueprint->methods.end()) {
                         auto function = initIt->second;
@@ -347,8 +389,11 @@ public:
                             return InterpretResult::INTERPRET_RUNTIME_ERROR;
                         }
 
+                        auto initClosure = std::make_shared<AdiClosure>();
+                        initClosure->function = function;
+
                         CallFrame* frame = &frames[frameCount++];
-                        frame->function = function;
+                        frame->closure = initClosure;
                         frame->ip = 0;
                         frame->slots = stack.size() - argCount - 1;
                         currentFrame = frame;
@@ -357,7 +402,6 @@ public:
                             std::cerr << "Runtime Error: Struct '" << blueprint->name << "' has no init method but received " << argCount << " arguments.\n";
                             return InterpretResult::INTERPRET_RUNTIME_ERROR;
                         }
-                        // If 0 args and no init, the instance is already in place on top of the stack.
                     }
                     break;
                 }
@@ -408,23 +452,19 @@ public:
                     currentFrame->ip = ip;
                     std::string name = std::get<std::string>(chunk->constants[nameIndex]);
 
-                    // 1. Pop the superclass from the stack (pushed just before OP_STRUCT)
                     Value superclassVal = pop();
                     std::shared_ptr<AdiStructDef> superclass = nullptr;
                     if (std::holds_alternative<std::shared_ptr<AdiStructDef>>(superclassVal)) {
                         superclass = std::get<std::shared_ptr<AdiStructDef>>(superclassVal);
                     }
 
-                    // 2. Create the new struct definition, passing the superclass link
                     auto structDef = std::make_shared<AdiStructDef>(name, std::vector<std::string>{}, superclass);
 
-                    // 3. If there is a superclass, inherit its baseline methods and fields
                     if (superclass != nullptr) {
                         structDef->fields = superclass->fields;
                         structDef->methods = superclass->methods;
                     }
 
-                    // 4. Store the struct definition globally (or in the current scope)
                     globals[name] = structDef;
                     push(structDef);
                     break;
@@ -436,7 +476,6 @@ public:
 
                     std::string methodName = std::get<std::string>(chunk->constants[nameIndex]);
 
-                    // Stack layout: [ ... | receiver (this) | superclass blueprint | arg1 | arg2 | ... ]
                     Value superclassVal = peek(argCount);
                     auto superclass = std::get<std::shared_ptr<AdiStructDef>>(superclassVal);
 
@@ -452,7 +491,6 @@ public:
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
-                    // Place receiver ('this') into slot 0 position for the new frame
                     size_t receiverSlot = stack.size() - argCount - 1;
                     Value receiver = peek(argCount + 1);
                     stack[receiverSlot] = receiver;
@@ -463,8 +501,11 @@ public:
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
+                    auto superClosure = std::make_shared<AdiClosure>();
+                    superClosure->function = function;
+
                     CallFrame* frame = &frames[frameCount++];
-                    frame->function = function;
+                    frame->closure = superClosure;
                     frame->ip = 0;
                     frame->slots = stack.size() - argCount - 1;
                     currentFrame = frame;
@@ -474,7 +515,6 @@ public:
                     uint8_t elementCount = chunk->code[ip++];
                     currentFrame->ip = ip;
                     std::vector<Value> elements;
-                    // Elements are on the stack in order, pop them
                     elements.resize(elementCount);
                     for (int i = elementCount - 1; i >= 0; i--) {
                         elements[i] = pop();
@@ -532,9 +572,50 @@ public:
                     push(val);
                     break;
                 }
+                case OpCode::OP_CLOSURE: {
+                    uint8_t constantIndex = chunk->code[ip++];
+                    currentFrame->ip = ip;
+                    Value constant = chunk->constants[constantIndex];
+                    auto function = std::get<std::shared_ptr<AdiFunction>>(constant);
+
+                    auto closure = std::make_shared<AdiClosure>();
+                    closure->function = function;
+
+                    for (int i = 0; i < function->upvalueCount; i++) {
+                        bool isLocal = chunk->code[ip++] == 1;
+                        uint8_t index = chunk->code[ip++];
+                        currentFrame->ip = ip;
+
+                        if (isLocal) {
+                            closure->upvalues.push_back(captureUpvalue(&stack[currentFrame->slots + index]));
+                        } else {
+                            closure->upvalues.push_back(currentFrame->closure->upvalues[index]);
+                        }
+                    }
+
+                    push(closure);
+                    break;
+                }
+                case OpCode::OP_GET_UPVALUE: {
+                    uint8_t slot = chunk->code[ip++];
+                    currentFrame->ip = ip;
+                    push(*(currentFrame->closure->upvalues[slot]->location));
+                    break;
+                }
+                case OpCode::OP_SET_UPVALUE: {
+                    uint8_t slot = chunk->code[ip++];
+                    currentFrame->ip = ip;
+                    *(currentFrame->closure->upvalues[slot]->location) = peek(0);
+                    break;
+                }
+                case OpCode::OP_CLOSE_UPVALUE: {
+                    closeUpvalues(&stack.back());
+                    pop();
+                    break;
+                }
                 default:
                     std::cerr << "Unknown opcode execution error: " << static_cast<int>(instruction) 
-                              << " at IP: " << (ip - 1) << "\n";
+                            << " at IP: " << (ip - 1) << "\n";
                     return InterpretResult::INTERPRET_RUNTIME_ERROR;
             }
         }

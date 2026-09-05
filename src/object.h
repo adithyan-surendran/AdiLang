@@ -18,8 +18,9 @@ struct AdiStructDef;
 struct AdiInstance;
 struct AdiBoundMethod;
 struct Environment;
+struct AdiUpvalue;
+struct AdiClosure; 
 
-// 1. Define the single source of truth for Value right here in object.h
 using Value = std::variant<
     double, 
     bool, 
@@ -29,11 +30,24 @@ using Value = std::variant<
     std::shared_ptr<AdiNativeMethod>, 
     std::shared_ptr<AdiStructDef>, 
     std::shared_ptr<AdiInstance>, 
-    std::shared_ptr<AdiBoundMethod>
+    std::shared_ptr<AdiBoundMethod>,
+    std::shared_ptr<AdiClosure> // Valid because AdiClosure is defined above
 >;
+// 1. Define AdiUpvalue and AdiClosure FIRST so they are known types
+struct AdiUpvalue {
+    Value* location; 
+    Value closed = false; 
+    AdiUpvalue* next = nullptr; 
+};
+
+struct AdiClosure {
+    std::shared_ptr<AdiFunction> function;
+    std::vector<std::shared_ptr<AdiUpvalue>> upvalues;
+};
+
 
 struct AdiArray {
-    std::vector<Value> elements; // Use Value directly
+    std::vector<Value> elements;
 
     AdiArray() = default;
     explicit AdiArray(std::vector<Value> elems) 

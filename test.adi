@@ -1,39 +1,21 @@
-struct Shape {
-    color,
+fn makeCounter() {
+    let i = 0;
 
-    init(color) {
-        this.color = color;
+    fn count() {
+        i = i + 1;
+        print(i);
     }
+
+    return count;
 }
 
-struct Rectangle < Shape {
-    width,
-    height,
+let counter = makeCounter();
 
-    init(color, width, height) {
-        super.init(color);
-        this.width = width;
-        this.height = height;
-    }
+counter();
+counter();
+counter();
 
-    area() {
-        return this.width * this.height;
-    }
-}
+let anotherCounter = makeCounter();
 
-// 3rd generation: Square extends Rectangle
-struct Square < Rectangle {
-    init(color, sideSize) {
-        // Delegate up to Rectangle, passing sideSize for both width and height
-        super.init(color, sideSize, sideSize);
-    }
-}
-
-let mySquare = Square("Green", 7);
-
-print("Square Color:");
-print(mySquare.color);  // Inherited from Shape via Rectangle
-print("Square Width:");
-print(mySquare.width);  // Inherited from Rectangle
-print("Square Area:");
-print(mySquare.area()); // Inherited method from Rectangle using overridden fields
+anotherCounter();
+counter();

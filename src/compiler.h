@@ -14,7 +14,10 @@ struct Local {
     std::string name;
     int depth;
 };
-
+struct CompilerUpvalue {
+    uint8_t index;
+    bool isLocal;
+};
 class Compiler {
 private:
     std::unordered_map<std::string, std::shared_ptr<AdiStructDef>> definedStructs;
@@ -26,9 +29,11 @@ private:
     };
 
     struct FunctionCompiler {
+        FunctionCompiler* enclosing = nullptr;
         std::shared_ptr<AdiFunction> function;
         int arity = 0;
         std::vector<Local> locals;
+        std::vector<CompilerUpvalue> upvalues;
         int scopeDepth = 0;
     };
 
@@ -36,7 +41,7 @@ private:
     ClassCompiler* currentClass = nullptr;
 
     void initFunction(std::shared_ptr<AdiFunction> function) {
-        current = new FunctionCompiler{function, 0, {}, 0};
+        current = new FunctionCompiler{current, function, 0, {}, {}, 0};
         Local local;
         local.name = "";
         local.depth = 0;
@@ -217,12 +222,21 @@ private:
                 compileNode(s.get());
             }
             
+            std::vector<CompilerUpvalue> upvalues = current->upvalues;
+            function->upvalueCount = static_cast<int>(upvalues.size()); // <--- Ensure this is set!
+            
             auto compiledFunction = endCompiler();
             current = enclosing;
 
-            uint8_t global = parseVariable(funcStmt->name);
-            emitConstant(compiledFunction);
-            defineVariable(global);
+            uint8_t nameConst = parseVariable(funcStmt->name);
+            emitBytes(static_cast<uint8_t>(OpCode::OP_CLOSURE), makeConstant(compiledFunction));
+
+            for (const auto& upvalue : upvalues) {
+                emitByte(upvalue.isLocal ? 1 : 0);
+                emitByte(upvalue.index);
+            }
+
+            defineVariable(nameConst);
         }
         else if (auto returnStmt = dynamic_cast<const ReturnStatement*>(stmt)) {
             if (returnStmt->value != nullptr) {
@@ -326,6 +340,8 @@ private:
                 int arg = resolveLocal(current, var->name);
                 if (arg != -1) {
                     emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(arg));
+                } else if ((arg = resolveUpvalue(current, var->name)) != -1) {
+                    emitBytes(static_cast<uint8_t>(OpCode::OP_GET_UPVALUE), static_cast<uint8_t>(arg));
                 } else {
                     emitBytes(static_cast<uint8_t>(OpCode::OP_GET_GLOBAL), makeConstant(var->name));
                 }
@@ -336,6 +352,8 @@ private:
             int arg = resolveLocal(current, assign->name);
             if (arg != -1) {
                 emitBytes(static_cast<uint8_t>(OpCode::OP_SET_LOCAL), static_cast<uint8_t>(arg));
+            } else if ((arg = resolveUpvalue(current, assign->name)) != -1) {
+                emitBytes(static_cast<uint8_t>(OpCode::OP_SET_UPVALUE), static_cast<uint8_t>(arg));
             } else {
                 emitBytes(static_cast<uint8_t>(OpCode::OP_SET_GLOBAL), makeConstant(assign->name));
             }
@@ -473,7 +491,11 @@ public:
             for (const auto& stmt : program->statements) {
                 compileNode(stmt.get());
             }
+            // End the script compiler normally, which appends an OP_RETURN
             auto compiledFunction = endCompiler();
+            
+            // Copy back the fully compiled chunk containing all bytecodes, 
+            // including OP_CLOSURE and OP_DEFINE_GLOBAL instructions for top-level functions.
             *chunk = *compiledFunction->chunk;
             return true;
         } catch (const std::runtime_error& e) {
@@ -484,6 +506,40 @@ public:
             }
             return false;
         }
+    }
+    int addUpvalue(FunctionCompiler* compiler, uint8_t index, bool isLocal) {
+        int count = static_cast<int>(compiler->upvalues.size());
+        for (int i = 0; i < count; i++) {
+            CompilerUpvalue* upvalue = &compiler->upvalues[i];
+            if (upvalue->index == index && upvalue->isLocal == isLocal) {
+                return i;
+            }
+        }
+
+        if (count >= 256) {
+            throw std::runtime_error("Too many closure variables in function.");
+        }
+
+        compiler->upvalues.push_back(CompilerUpvalue{index, isLocal});
+        return count;
+    }
+
+    int resolveUpvalue(FunctionCompiler* compiler, const std::string& name) {
+        if (compiler->enclosing == nullptr) return -1;
+
+        // Try to resolve as a local in the immediately enclosing function
+        int local = resolveLocal(compiler->enclosing, name);
+        if (local != -1) {
+            return addUpvalue(compiler, static_cast<uint8_t>(local), true);
+        }
+
+        // Recursively try to resolve as an upvalue in the enclosing function
+        int upvalue = resolveUpvalue(compiler->enclosing, name);
+        if (upvalue != -1) {
+            return addUpvalue(compiler, static_cast<uint8_t>(upvalue), false);
+        }
+
+        return -1;
     }
 };
 
