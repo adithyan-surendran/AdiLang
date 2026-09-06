@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <memory>
 
+
 struct CallFrame {
     AdiClosure* closure = nullptr;
     size_t ip = 0;
@@ -79,13 +80,13 @@ private:
     }
 
     void closeUpvalues(Value* last) {
-        while (openUpvalues != nullptr && openUpvalues->location >= last) {
-            AdiUpvalue* upvalue = openUpvalues;
-            upvalue->closed = *upvalue->location;
-            upvalue->location = &upvalue->closed;
-            openUpvalues = upvalue->next;
-        }
+    while (openUpvalues != nullptr && openUpvalues->location >= last) {
+        AdiUpvalue* upvalue = openUpvalues;
+        upvalue->closed = *upvalue->location;
+        upvalue->location = &upvalue->closed;
+        openUpvalues = upvalue->next;
     }
+}
 
     void resetStack() {
         stack.clear();

@@ -8,18 +8,20 @@
 #include <variant>
 #include <functional>
 
-// Forward declarations
+// Forward declarations for all custom object types used in pointers
 struct StructStmt;
 struct Chunk;
-struct AdiNativeMethod;
+struct FunctionStatement;
+struct AdiObject;
 struct AdiArray;
 struct AdiFunction;
+struct AdiNativeMethod;
 struct AdiStructDef;
 struct AdiInstance;
 struct AdiBoundMethod;
 struct Environment;
 struct AdiUpvalue;
-struct AdiClosure; 
+struct AdiClosure;
 
 // Master base class for all heap-allocated objects tracked by the GC
 struct AdiObject {
@@ -28,6 +30,7 @@ struct AdiObject {
     virtual ~AdiObject() = default;
 };
 
+// 1. Define Value variant using forward-declared pointer types
 using Value = std::variant<
     double, 
     bool, 
@@ -41,17 +44,53 @@ using Value = std::variant<
     AdiClosure*
 >;
 
+// 2. Fully define AdiUpvalue
 struct AdiUpvalue : public AdiObject {
-    Value* location; 
-    Value closed = false; 
-    AdiUpvalue* next = nullptr; 
+    Value* location;     
+    Value closed;        
+    AdiUpvalue* next;    
+
+    AdiUpvalue() : location(nullptr), closed(0.0), next(nullptr) {}
+    AdiUpvalue(Value* loc) : location(loc), closed(0.0), next(nullptr) {}
 };
 
+// 3. Fully define AdiFunction (Value is already defined, so signatures work)
+struct AdiFunction : public AdiObject {
+    int arity = 0;
+    int upvalueCount = 0;
+    std::shared_ptr<Chunk> chunk;
+    std::string name;
+    FunctionStatement* declaration = nullptr;
+    std::shared_ptr<Environment> closure;
+
+    AdiFunction() : chunk(std::make_shared<Chunk>()) {}
+    
+    explicit AdiFunction(std::string name) 
+        : chunk(std::make_shared<Chunk>()), name(std::move(name)) {}
+
+    AdiFunction(int arity, std::string name) 
+        : arity(arity), chunk(std::make_shared<Chunk>()), name(std::move(name)) {}
+        
+    AdiFunction(std::string name, const FunctionStatement* stmt) 
+        : chunk(std::make_shared<Chunk>()), name(std::move(name)), declaration(const_cast<FunctionStatement*>(stmt)) {}
+    
+    AdiFunction(const FunctionStatement* stmt, std::shared_ptr<Environment> closureEnv)
+        : chunk(std::make_shared<Chunk>()), declaration(const_cast<FunctionStatement*>(stmt)), closure(closureEnv) {}
+
+    Value call(class Interpreter& interpreter, const std::vector<Value>& arguments);
+};
+
+// 4. Fully define AdiClosure (AdiFunction is fully complete, so `func->arity` works)
 struct AdiClosure : public AdiObject {
     AdiFunction* function;
     std::vector<AdiUpvalue*> upvalues;
+    int arity = 0;
+
+    AdiClosure() : function(nullptr), arity(0) {}
+    AdiClosure(AdiFunction* func) : function(func), arity(func ? func->arity : 0) {}
 };
 
+// 5. Define remaining object types
 struct AdiArray : public AdiObject {
     std::vector<Value> elements;
 
@@ -59,6 +98,7 @@ struct AdiArray : public AdiObject {
     explicit AdiArray(std::vector<Value> elems) 
         : elements(std::move(elems)) {}
 };
+
 struct AdiInstance : public AdiObject {
     AdiStructDef* blueprint;
     std::unordered_map<std::string, Value> fields;
@@ -85,36 +125,12 @@ struct AdiBoundMethod : public AdiObject {
     AdiBoundMethod(AdiInstance* rec, AdiFunction* meth) 
         : receiver(rec), method(meth) {}
 };
-struct AdiFunction : public AdiObject {
-    int arity = 0;
-    int upvalueCount = 0;
-    std::shared_ptr<Chunk> chunk;
-    std::string name;
-    struct FunctionStatement* declaration = nullptr;
-    std::shared_ptr<Environment> closure;
-
-    AdiFunction() : chunk(std::make_shared<Chunk>()) {}
-    
-    explicit AdiFunction(std::string name) 
-        : chunk(std::make_shared<Chunk>()), name(std::move(name)) {}
-
-    AdiFunction(int arity, std::string name) 
-        : arity(arity), chunk(std::make_shared<Chunk>()), name(std::move(name)) {}
-        
-    AdiFunction(std::string name, const struct FunctionStatement* stmt) 
-        : chunk(std::make_shared<Chunk>()), name(std::move(name)), declaration(const_cast<FunctionStatement*>(stmt)) {}
-    
-    AdiFunction(const struct FunctionStatement* stmt, std::shared_ptr<Environment> closureEnv)
-        : chunk(std::make_shared<Chunk>()), declaration(const_cast<FunctionStatement*>(stmt)), closure(closureEnv) {}
-
-    Value call(class Interpreter& interpreter, const std::vector<Value>& arguments);
-};
 
 struct AdiStructDef : public AdiObject {
     std::string name;
     AdiStructDef* superclass; 
     std::vector<std::string> fields;
-    std::unordered_map<std::string, AdiFunction*> methods; // Use raw pointer here
+    std::unordered_map<std::string, AdiFunction*> methods;
 
     AdiStructDef() = default;
     

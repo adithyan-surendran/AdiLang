@@ -1,18 +1,28 @@
-// Test basic math and printing
-print (10 + 20 * 2);
-
-// Test variables and assignment
-let message = "Hello from AdiLang VM!";
-print (message);
-
-let counter = 0;
-while (counter < 3) {
-    print (counter);
-    counter = counter + 1;
+// Test 1: Basic nested function scoping and upvalue capture
+fn makeCounter() {
+    let count = 0;
+    fn counter() {
+        count = count + 1;
+        return count;
+    }
+    return counter;
 }
 
-// Test functions and return values
-fn add(a, b) {
-    return a + b;
+let c = makeCounter();
+print (c()); // Expected: 1
+print (c()); // Expected: 2
+print (c()); // Expected: 3
+
+// Test 2: Independent closure instances (each gets its own upvalue storage)
+fn makeAdder(base) {
+    fn add(n) {
+        return base + n;
+    }
+    return add;
 }
-print (add(15, 27));
+
+let addFive = makeAdder(5);
+let addTen = makeAdder(10);
+
+print (addFive(2)); // Expected: 7
+print (addTen(2));  // Expected: 12
