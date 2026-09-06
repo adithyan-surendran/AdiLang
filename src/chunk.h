@@ -10,32 +10,7 @@
 #include "object.h" // Value is defined here now!
 
 // Define AdiInstance here where Value is 100% a complete type
-struct AdiInstance : public std::enable_shared_from_this<AdiInstance> {
-    std::shared_ptr<AdiStructDef> blueprint;
-    std::unordered_map<std::string, Value> fields;
 
-    explicit AdiInstance(std::shared_ptr<AdiStructDef> bp) : blueprint(bp) {}
-
-    Value get(const std::string& name) {
-        auto it = fields.find(name);
-        if (it != fields.end()) {
-            return it->second;
-        }
-        throw std::runtime_error("Undefined property '" + name + "'.");
-    }
-
-    void set(const std::string& name, Value value) {
-        fields[name] = value;
-    }
-};
-
-struct AdiBoundMethod {
-    std::shared_ptr<AdiInstance> receiver;
-    std::shared_ptr<AdiFunction> method;
-    
-    AdiBoundMethod(std::shared_ptr<AdiInstance> rec, std::shared_ptr<AdiFunction> meth) 
-        : receiver(rec), method(meth) {}
-};
 
 enum class OpCode : uint8_t {
     OP_CONSTANT,

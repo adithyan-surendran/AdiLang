@@ -11,6 +11,9 @@
 #include "compiler.h"
 #include "vm.h"
 
+VM vm;
+
+
 void runFile(const std::string& path) {
     std::ifstream file(path);
     if (!file.is_open()) {
@@ -32,7 +35,7 @@ void runFile(const std::string& path) {
 
     // 3. Compile
     Chunk chunk;
-    Compiler compiler;
+    Compiler compiler(&vm); 
     if (!compiler.compile(program.get(), &chunk)) {
         std::cerr << "Compilation failed during bytecode emission.\n";
         exit(65);
@@ -64,7 +67,7 @@ void runPrompt() {
         auto program = parser.parse();
 
         Chunk chunk;
-        Compiler compiler;
+        Compiler compiler(&vm); 
         if (!compiler.compile(program.get(), &chunk)) {
             continue;
         }

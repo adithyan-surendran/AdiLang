@@ -21,40 +21,71 @@ struct Environment;
 struct AdiUpvalue;
 struct AdiClosure; 
 
+// Master base class for all heap-allocated objects tracked by the GC
+struct AdiObject {
+    bool isMarked = false;
+    AdiObject* next = nullptr;
+    virtual ~AdiObject() = default;
+};
+
 using Value = std::variant<
     double, 
     bool, 
     std::string, 
-    std::shared_ptr<AdiArray>, 
-    std::shared_ptr<AdiFunction>, 
-    std::shared_ptr<AdiNativeMethod>, 
-    std::shared_ptr<AdiStructDef>, 
-    std::shared_ptr<AdiInstance>, 
-    std::shared_ptr<AdiBoundMethod>,
-    std::shared_ptr<AdiClosure> // Valid because AdiClosure is defined above
+    AdiArray*, 
+    AdiFunction*, 
+    AdiNativeMethod*, 
+    AdiStructDef*, 
+    AdiInstance*, 
+    AdiBoundMethod*,
+    AdiClosure*
 >;
-// 1. Define AdiUpvalue and AdiClosure FIRST so they are known types
-struct AdiUpvalue {
+
+struct AdiUpvalue : public AdiObject {
     Value* location; 
     Value closed = false; 
     AdiUpvalue* next = nullptr; 
 };
 
-struct AdiClosure {
-    std::shared_ptr<AdiFunction> function;
-    std::vector<std::shared_ptr<AdiUpvalue>> upvalues;
+struct AdiClosure : public AdiObject {
+    AdiFunction* function;
+    std::vector<AdiUpvalue*> upvalues;
 };
 
-
-struct AdiArray {
+struct AdiArray : public AdiObject {
     std::vector<Value> elements;
 
     AdiArray() = default;
     explicit AdiArray(std::vector<Value> elems) 
         : elements(std::move(elems)) {}
 };
+struct AdiInstance : public AdiObject {
+    AdiStructDef* blueprint;
+    std::unordered_map<std::string, Value> fields;
 
-struct AdiFunction {
+    explicit AdiInstance(AdiStructDef* bp) : blueprint(bp) {}
+
+    Value get(const std::string& name) {
+        auto it = fields.find(name);
+        if (it != fields.end()) {
+            return it->second;
+        }
+        throw std::runtime_error("Undefined property '" + name + "'.");
+    }
+
+    void set(const std::string& name, Value value) {
+        fields[name] = value;
+    }
+};
+
+struct AdiBoundMethod : public AdiObject {
+    AdiInstance* receiver;
+    AdiFunction* method;
+    
+    AdiBoundMethod(AdiInstance* rec, AdiFunction* meth) 
+        : receiver(rec), method(meth) {}
+};
+struct AdiFunction : public AdiObject {
     int arity = 0;
     int upvalueCount = 0;
     std::shared_ptr<Chunk> chunk;
@@ -79,29 +110,29 @@ struct AdiFunction {
     Value call(class Interpreter& interpreter, const std::vector<Value>& arguments);
 };
 
-struct AdiStructDef {
+struct AdiStructDef : public AdiObject {
     std::string name;
-    std::shared_ptr<AdiStructDef> superclass; 
+    AdiStructDef* superclass; 
     std::vector<std::string> fields;
-    std::unordered_map<std::string, std::shared_ptr<AdiFunction>> methods;
+    std::unordered_map<std::string, AdiFunction*> methods; // Use raw pointer here
 
     AdiStructDef() = default;
     
-    AdiStructDef(std::string name, std::vector<std::string> fields, std::shared_ptr<AdiStructDef> superclass = nullptr)
-        : name(std::move(name)), superclass(std::move(superclass)), fields(std::move(fields)) {}
+    AdiStructDef(std::string name, std::vector<std::string> fields, AdiStructDef* superclass = nullptr)
+        : name(std::move(name)), superclass(superclass), fields(std::move(fields)) {}
     
     explicit AdiStructDef(const StructStmt* stmt);
 };
 using AdiStructBlueprint = AdiStructDef;
 
-using NativeMethodFn = std::function<Value(std::shared_ptr<AdiArray>, const std::vector<Value>&)>;
+using NativeMethodFn = std::function<Value(AdiArray*, const std::vector<Value>&)>;
 
-struct AdiNativeMethod {
+struct AdiNativeMethod : public AdiObject {
     std::string name;
     NativeMethodFn function;
-    std::shared_ptr<AdiArray> self;
+    AdiArray* self;
 
-    AdiNativeMethod(std::string name, NativeMethodFn function, std::shared_ptr<AdiArray> self)
+    AdiNativeMethod(std::string name, NativeMethodFn function, AdiArray* self)
         : name(name), function(function), self(self) {}
 
     Value call(const std::vector<Value>& args) {

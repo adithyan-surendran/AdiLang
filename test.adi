@@ -1,21 +1,18 @@
-fn makeCounter() {
-    let i = 0;
+// Test basic math and printing
+print (10 + 20 * 2);
 
-    fn count() {
-        i = i + 1;
-        print(i);
-    }
+// Test variables and assignment
+let message = "Hello from AdiLang VM!";
+print (message);
 
-    return count;
+let counter = 0;
+while (counter < 3) {
+    print (counter);
+    counter = counter + 1;
 }
 
-let counter = makeCounter();
-
-counter();
-counter();
-counter();
-
-let anotherCounter = makeCounter();
-
-anotherCounter();
-counter();
+// Test functions and return values
+fn add(a, b) {
+    return a + b;
+}
+print (add(15, 27));
