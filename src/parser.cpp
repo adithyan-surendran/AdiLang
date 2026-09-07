@@ -113,8 +113,8 @@ std::unique_ptr<Stmt> Parser::statement()
     }
 
     // Inside statement():
-    if (match(TokenType::STRUCT)) {
-        return structDeclaration(); 
+    if (match(TokenType::STRUCT) || match(TokenType::CLASS)) {
+        return structDeclaration(); // or classDeclaration()
     }
 
     return expressionStatement();
@@ -232,13 +232,14 @@ std::unique_ptr<Expr> Parser::assignment()
         if (auto getExpr = dynamic_cast<GetExpr*>(expr.get()))
         {
             if (opToken.type == TokenType::EQUAL) {
+                std::cout << "[DEBUG] Successfully matched SetExpr for property assignment!\n";
                 return std::make_unique<SetExpr>(
                     std::move(getExpr->object),
                     getExpr->name,
                     std::move(value)
                 );
             }
-            throw std::runtime_error("Parser Error: Compound assignment on object properties (like +=) not supported yet.");
+            throw std::runtime_error("Parser Error: Compound assignment on object properties not supported.");
         }
 
         std::cerr << "Parser Error: Invalid assignment target at line " << opToken.line << "\n";
@@ -379,6 +380,11 @@ std::unique_ptr<Expr> Parser::primary()
         return std::make_unique<VariableExpr>("false");
     }
 
+    if (match(TokenType::THIS))
+    {
+        return std::make_unique<VariableExpr>("this");
+    }
+
     // --- Array Literal: [elem1, elem2, ...] ---
     if (match(TokenType::LEFT_BRACKET)) {
         std::vector<std::unique_ptr<Expr>> elements;
@@ -387,7 +393,7 @@ std::unique_ptr<Expr> Parser::primary()
                 if (elements.size() >= 255) {
                     throw std::runtime_error("Parser Error: Cannot have more than 255 elements in an array literal.");
                 }
-                elements.push_back(expression());
+                elements.push_back(assignment());
             } while (match(TokenType::COMMA));
         }
         consume(TokenType::RIGHT_BRACKET, "Expected ']' after array elements.");
@@ -396,12 +402,12 @@ std::unique_ptr<Expr> Parser::primary()
 
     if (match(TokenType::LEFT_PAREN))
     {
-        auto expr = expression();
+        auto expr = assignment();
         consume(TokenType::RIGHT_PAREN, "Expected ')'");
         return expr;
     }
 
-    // --- MOVED UP HERE: Parse super expressions like super.init(name) ---
+    // --- Parse super expressions like super.init(name) ---
     if (match(TokenType::SUPER)) {
         Token keyword = previous();
         consume(TokenType::DOT, "Expected '.' after 'super'.");
@@ -415,7 +421,7 @@ std::unique_ptr<Expr> Parser::primary()
                     if (arguments.size() >= 255) {
                         throw std::runtime_error("Parser Error: Cannot have more than 255 arguments.");
                     }
-                    arguments.push_back(expression());
+                    arguments.push_back(assignment());
                 } while (match(TokenType::COMMA));
             }
             consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
@@ -423,24 +429,21 @@ std::unique_ptr<Expr> Parser::primary()
 
         return std::make_unique<SuperExpr>(methodName, std::move(arguments));
     }
-    // ------------------------------------------------------------------
 
     std::cerr << "Parser Error: Expected expression\n";
     return nullptr;
 }
 std::unique_ptr<Stmt> Parser::printStatement()
 {
-    consume(
-        TokenType::LEFT_PAREN,
-        "Expected '(' after print"
-    );
-
+    bool hasParen = match(TokenType::LEFT_PAREN);
     auto expr = expression();
 
-    consume(
-        TokenType::RIGHT_PAREN,
-        "Expected ')' after expression"
-    );
+    if (hasParen) {
+        consume(
+            TokenType::RIGHT_PAREN,
+            "Expected ')' after expression"
+        );
+    }
 
     consume(
         TokenType::SEMICOLON,
@@ -599,7 +602,7 @@ std::unique_ptr<Expr> Parser::call() {
                     std::vector<std::unique_ptr<Expr>> arguments;
                     if (!check(TokenType::RIGHT_PAREN)) {
                         do {
-                            arguments.push_back(expression());
+                            arguments.push_back(assignment()); // Updated to assignment()
                         } while (match(TokenType::COMMA));
                     }
                     consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
@@ -612,7 +615,7 @@ std::unique_ptr<Expr> Parser::call() {
             }
         } 
         else if (match(TokenType::LEFT_BRACKET)) {
-            auto index = expression();
+            auto index = assignment(); // Updated to assignment()
             consume(TokenType::RIGHT_BRACKET, "Expected ']' after array index.");
             expr = std::make_unique<IndexGetExpr>(std::move(expr), std::move(index));
         }
@@ -635,7 +638,7 @@ std::unique_ptr<Expr> Parser::finishCall(std::unique_ptr<Expr> callee) {
             if (arguments.size() >= 255) {
                 throw std::runtime_error("Parser Error: Cannot have more than 255 arguments.");
             }
-            arguments.push_back(expression());
+            arguments.push_back(assignment());
         } while (match(TokenType::COMMA));
     }
 
@@ -699,6 +702,8 @@ std::unique_ptr<Stmt> Parser::structDeclaration() {
             match(TokenType::SEMICOLON);
 
         } while (!check(TokenType::RIGHT_BRACE) && !check(TokenType::END_OF_FILE));
+
+        
     }
 
     consume(TokenType::RIGHT_BRACE, "Expected '}' after struct body.");

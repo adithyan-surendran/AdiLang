@@ -184,7 +184,7 @@ void Compiler::compileNode(const Stmt* stmt) {
         emitConstant(structDef);
         defineVariable(nameConst);
     }
-
+   
 }
 void Compiler::compileExpression(const Expr* expr) {
     if (auto num = dynamic_cast<const NumberExpr*>(expr)) {
@@ -306,4 +306,5 @@ void Compiler::compileExpression(const Expr* expr) {
         compileExpression(indexSet->index.get());
         emitByte(static_cast<uint8_t>(OpCode::OP_INDEX_SET));
     }
+    
 }
