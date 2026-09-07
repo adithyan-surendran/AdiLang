@@ -1,17 +1,12 @@
-class Animal {
-    init(name) {
-        this.name = name;
+fn makeCounter() {
+    let i = 0;
+    fn count() {
+        i = i + 1;
+        print i;
     }
-    speak() {
-        print "Some sound";
-    }
+    return count;
 }
 
-class Dog < Animal {
-    speak() {
-        print this.name + " barks!";
-    }
-}
-
-let d = Dog("Rex");
-d.speak();
+let counter = makeCounter();
+counter(); // Prints 1
+counter(); // Prints 2

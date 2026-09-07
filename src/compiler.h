@@ -97,7 +97,7 @@ private:
     void endScope(int line = 0) {
         current->scopeDepth--;
         while (!current->locals.empty() && current->locals.back().depth > current->scopeDepth) {
-            emitByte(static_cast<uint8_t>(OpCode::OP_POP), line);
+            emitByte(static_cast<uint8_t>(OpCode::OP_CLOSE_UPVALUE), line);
             current->locals.pop_back();
         }
     }
