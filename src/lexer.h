@@ -11,6 +11,7 @@ enum class TokenType {
     STRING,
 
     // Keywords
+    IMPORT,
     LET,
     PRINT,
     IF,
@@ -49,6 +50,7 @@ enum class TokenType {
     LESS_EQUAL,
 
     // Symbols
+    AT,
     LEFT_PAREN,
     RIGHT_PAREN,
     LEFT_BRACE,

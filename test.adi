@@ -1,12 +1,21 @@
-fn makeCounter() {
-    let i = 0;
-    fn count() {
-        i = i + 1;
-        print i;
-    }
-    return count;
-}
+@import math;
 
-let counter = makeCounter();
-counter(); // Prints 1
-counter(); // Prints 2
+print("--- Testing AdiLang Math Module v0.15.0 ---");
+
+// Roots and Powers
+print(math.sqrt(144));       // 12
+print(math.pow(2, 4));       // 16
+print(math.abs(-15.5));      // 15.5
+
+// Rounding
+print(math.floor(7.9));      // 7
+print(math.ceil(7.1));       // 8
+print(math.round(7.5));      // 8
+
+// Trigonometry (0 radians)
+print(math.sin(0));          // 0
+print(math.cos(0));          // 1
+
+// Constants
+print(math.PI);              // 3.141592653589793
+print(math.E);               // 2.718281828459045

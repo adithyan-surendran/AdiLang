@@ -325,6 +325,15 @@ public:
           methods(std::move(methods)) {}
 };
 
+// --- Import Statement: @import moduleName; ---
+class ImportStmt : public Stmt {
+public:
+    std::string moduleName;
+
+    explicit ImportStmt(std::string name)
+        : moduleName(std::move(name)) {}
+};
+
 // ==========================================
 // 3. Root Node: Program
 // ==========================================

@@ -2,6 +2,7 @@
 #define ADILANG_CHUNK_H
 
 #include <vector>
+#include <cstdint>
 #include <variant>
 #include <string>
 #include <memory>

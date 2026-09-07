@@ -68,6 +68,12 @@ std::unique_ptr<Program> Parser::parse()
 }
 std::unique_ptr<Stmt> Parser::statement()
 {
+    if (match(TokenType::AT)) {
+        consume(TokenType::IMPORT, "Expect 'import' after '@'.");
+        Token moduleNameToken = consume(TokenType::IDENTIFIER, "Expect module name after '@import'.");
+        consume(TokenType::SEMICOLON, "Expect ';' after import statement.");
+        return std::make_unique<ImportStmt>(moduleNameToken.lexeme);
+    }
     if (match(TokenType::IF))
     {
         return ifStatement();

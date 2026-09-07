@@ -1,7 +1,18 @@
 #include "compiler.h"
 #include "vm.h"
+#include "stdio.h"
+#include "math.h"
 #include <stdexcept>
 #include <iostream>
+
+Value Compiler::loadNativeModule(const std::string& name) {
+    if (name == "stdio") {
+        return createIOModule(vm);
+    } else if (name == "math") {
+        return createMathModule(vm);
+    }
+    throw std::runtime_error("Compiler Error: Unknown module '@import " + name + "'.");
+}
 
 Compiler::Compiler(VM* vm) : vm(vm) {}
 
@@ -14,6 +25,11 @@ bool Compiler::compile(const Program* program, Chunk* chunk) {
         for (const auto& stmt : program->statements) {
             compileNode(stmt.get());
         }
+        
+        // Append implicit return to balance the script frame and prevent core dumps
+        emitByte(static_cast<uint8_t>(OpCode::OP_NIL));
+        emitByte(static_cast<uint8_t>(OpCode::OP_RETURN));
+
         AdiFunction* compiledFunction = endCompiler();
         
         *chunk = *compiledFunction->chunk;
@@ -34,6 +50,25 @@ void Compiler::compileNode(const Stmt* stmt) {
         uint8_t global = parseVariable(varDecl->name);
         defineVariable(global);
     }
+
+    else if (auto importStmt = dynamic_cast<const ImportStmt*>(stmt)) {
+        Value moduleObj = loadNativeModule(importStmt->moduleName);
+        
+        if (importStmt->moduleName == "stdio") {
+            AdiInstance* moduleInstance = std::get<AdiInstance*>(moduleObj);
+            
+            for (const auto& pair : moduleInstance->fields) {
+                uint8_t nameConst = makeConstant(pair.first);
+                emitConstant(pair.second);
+                defineVariable(nameConst);
+            }
+        } else {
+            uint8_t nameConst = makeConstant(importStmt->moduleName);
+            emitConstant(moduleObj);
+            defineVariable(nameConst);
+        }
+    }
+
     else if (auto printStmt = dynamic_cast<const PrintStatement*>(stmt)) {
         compileExpression(printStmt->expression.get());
         emitByte(static_cast<uint8_t>(OpCode::OP_PRINT));
@@ -192,6 +227,14 @@ void Compiler::compileExpression(const Expr* expr) {
     }
     else if (auto str = dynamic_cast<const StringExpr*>(expr)) {
         emitConstant(str->value);
+    }
+    else if (auto unary = dynamic_cast<const UnaryExpr*>(expr)) {
+        compileExpression(unary->right.get());
+        switch (unary->op) {
+            case TokenType::MINUS: emitByte(static_cast<uint8_t>(OpCode::OP_NEGATE)); break;
+            case TokenType::BANG:  emitByte(static_cast<uint8_t>(OpCode::OP_NOT)); break;
+            default: break;
+        }
     }
     else if (auto var = dynamic_cast<const VariableExpr*>(expr)) {
         if (var->name == "true") {

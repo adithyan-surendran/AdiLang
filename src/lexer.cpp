@@ -93,6 +93,9 @@ void Lexer::scanToken() {
     char c = advance();
 
     switch (c) {
+        case '@':
+            addToken(TokenType::AT);
+            break;
 
         case '(':
             addToken(TokenType::LEFT_PAREN);
@@ -295,8 +298,13 @@ void Lexer::identifier() {
     std::string text =
         source.substr(start,
                       current - start);
+    if (text == "import")
+        addToken(TokenType::IMPORT);
 
-    if (text == "let")
+    else if (text == "let")
+        addToken(TokenType::LET);
+    
+    else if (text == "let")
         addToken(TokenType::LET);
 
     else if (text == "print")

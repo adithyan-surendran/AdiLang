@@ -1,51 +1,61 @@
 #ifndef ADILANG_COMPILER_H
 #define ADILANG_COMPILER_H
 
-#include "ast.h"
 #include "chunk.h"
 #include "object.h"
+#include "ast.h"
+#include "vm.h"
 #include <string>
 #include <vector>
-#include <memory>
 #include <unordered_map>
-#include <stdexcept>
 
-class VM;
+enum class FunctionType {
+    TYPE_FUNCTION,
+    TYPE_SCRIPT,
+    TYPE_METHOD,
+    TYPE_INITIALIZER
+};
 
 struct Local {
     std::string name;
     int depth;
+    bool isCaptured;
 };
+
 struct CompilerUpvalue {
     uint8_t index;
     bool isLocal;
 };
 
+struct FunctionCompiler {
+    FunctionCompiler* enclosing = nullptr;
+    AdiFunction* function = nullptr;
+    FunctionType type = FunctionType::TYPE_SCRIPT;
+    int arity = 0;
+    std::vector<Local> locals;
+    std::vector<CompilerUpvalue> upvalues;
+    int scopeDepth = 0;
+};
+
+struct ClassCompiler {
+    ClassCompiler* enclosing = nullptr;
+    bool hasSuperclass = false;
+    std::string superclassName = "";
+};
+
 class Compiler {
 private:
     VM* vm;
-    std::unordered_map<std::string, AdiStructDef*> definedStructs;
-    
-    struct ClassCompiler {
-        ClassCompiler* enclosing = nullptr;
-        bool hasSuperclass = false; 
-        std::string superclassName;
-    };
-
-    struct FunctionCompiler {
-        FunctionCompiler* enclosing = nullptr;
-        AdiFunction* function;
-        int arity = 0;
-        std::vector<Local> locals;
-        std::vector<CompilerUpvalue> upvalues;
-        int scopeDepth = 0;
-    };
-
     FunctionCompiler* current = nullptr;
     ClassCompiler* currentClass = nullptr;
+    std::unordered_map<std::string, AdiStructDef*> definedStructs;
+
+    Value loadNativeModule(const std::string& name);
+    void compileNode(const Stmt* stmt);
+    void compileExpression(const Expr* expr);
 
     void initFunction(AdiFunction* function) {
-        current = new FunctionCompiler{current, function, 0, {}, {}, 0};
+        current = new FunctionCompiler{current, function, FunctionType::TYPE_SCRIPT, 0, {}, {}, 0};
         Local local;
         local.name = "";
         local.depth = 0;
@@ -159,9 +169,6 @@ private:
         }
         emitBytes(static_cast<uint8_t>(OpCode::OP_DEFINE_GLOBAL), global, line);
     }
-
-    void compileNode(const Stmt* stmt);
-    void compileExpression(const Expr* expr); // defined inline or in cpp
 
     int emitJump(uint8_t instruction) {
         emitByte(instruction);

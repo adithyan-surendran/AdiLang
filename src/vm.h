@@ -98,12 +98,21 @@ private:
     }
 
     Value pop() {
+        if (stack.empty()) {
+            std::cerr << "Runtime Error: Stack underflow.\n";
+            return 0.0;
+        }
         Value val = stack.back();
         stack.pop_back();
         return val;
     }
 
     Value peek(int distance) {
+        if (stack.size() <= static_cast<size_t>(distance)) {
+            std::cerr << "Runtime Error: Stack peek out of bounds (size: " 
+                      << stack.size() << ", distance: " << distance << ").\n";
+            return 0.0;
+        }
         return stack[stack.size() - 1 - distance];
     }
 
@@ -410,13 +419,23 @@ public:
                 case OpCode::OP_GET_LOCAL: {
                     uint8_t slot = chunk->code[ip++];
                     currentFrame->ip = ip;
-                    push(stack[currentFrame->slots + slot]);
+                    size_t targetIndex = currentFrame->slots + slot;
+                    if (targetIndex >= stack.size()) {
+                        std::cerr << "Runtime Error: Local slot out of bounds.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+                    push(stack[targetIndex]);
                     break;
                 }
                 case OpCode::OP_SET_LOCAL: {
                     uint8_t slot = chunk->code[ip++];
                     currentFrame->ip = ip;
-                    stack[currentFrame->slots + slot] = peek(0);
+                    size_t targetIndex = currentFrame->slots + slot;
+                    if (targetIndex >= stack.size()) {
+                        std::cerr << "Runtime Error: Local slot out of bounds for assignment.\n";
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+                    stack[targetIndex] = peek(0);
                     break;
                 }
                 case OpCode::OP_CALL: {
@@ -424,6 +443,27 @@ public:
                     currentFrame->ip = ip;
                     
                     Value callee = peek(argCount);
+
+                    if (std::holds_alternative<AdiNativeMethod*>(callee)) {
+                        AdiNativeMethod* native = std::get<AdiNativeMethod*>(callee);
+                        
+                        // Collect arguments from the stack
+                        std::vector<Value> args;
+                        for (int i = 0; i < argCount; i++) {
+                            args.push_back(peek(argCount - 1 - i));
+                        }
+
+                        // Pop the arguments and the callee off the stack
+                        for (int i = 0; i <= argCount; i++) {
+                            pop();
+                        }
+
+                        // Execute the native function pointer
+                        Value result = native->function(native->self, args);
+                        push(result);
+                        break;
+                    }
+
                     AdiClosure* closure = nullptr;
 
                     if (std::holds_alternative<AdiBoundMethod*>(callee)) {
@@ -459,10 +499,14 @@ public:
                     Value result = pop();
                     CallFrame* returningFrame = &frames[frameCount - 1];
                     
-                    closeUpvalues(&stack[returningFrame->slots]);
+                    if (!stack.empty() && returningFrame->slots < stack.size()) {
+                        closeUpvalues(&stack[returningFrame->slots]);
+                    }
 
                     if (returningFrame->closure->function->name == "init") {
-                        result = stack[returningFrame->slots];
+                        if (!stack.empty() && returningFrame->slots < stack.size()) {
+                            result = stack[returningFrame->slots];
+                        }
                     }
 
                     frameCount--;
@@ -471,7 +515,9 @@ public:
                         return InterpretResult::INTERPRET_OK;
                     }
 
-                    stack.resize(returningFrame->slots);
+                    if (returningFrame->slots < stack.size()) {
+                        stack.resize(returningFrame->slots);
+                    }
                     push(result);
                     break;
                 }
@@ -700,7 +746,12 @@ public:
                         currentFrame->ip = ip;
 
                         if (isLocal) {
-                            closure->upvalues.push_back(captureUpvalue(&stack[currentFrame->slots + index]));
+                            size_t localIdx = currentFrame->slots + index;
+                            if (localIdx >= stack.size()) {
+                                std::cerr << "Runtime Error: Upvalue local index out of bounds.\n";
+                                return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                            }
+                            closure->upvalues.push_back(captureUpvalue(&stack[localIdx]));
                         } else {
                             closure->upvalues.push_back(currentFrame->closure->upvalues[index]);
                         }
