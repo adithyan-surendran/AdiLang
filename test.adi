@@ -1,13 +1,24 @@
 @import stdio;
+@import fs;
 
-print("--- Testing AdiLang v0.16.0 Maps & Dictionaries ---");
+print("--- Testing AdiLang v0.17.0 File I/O Streams ---");
 
-// Test map literals, lookups, and assignments
-let user = {"name": "AdiLang Developer", "version": 16.0, "active": true};
-print(user["name"]);
-print(user["version"]);
+let filename = "test_output.txt";
 
-user["active"] = false;
-print(user);
+// Write initial content
+fs.write(filename, "Hello from AdiLang v0.17.0!\n");
+print("File written successfully.");
 
-print("--- Map and Array integration test passed successfully! ---");
+// Append content
+fs.append(filename, "Appending an extra line to the stream.\n");
+print("Content appended successfully.");
+
+// Check existence and read back
+if (fs.exists(filename)) {
+    print("File contents read:");
+    print(fs.read(filename));
+} else {
+    print("Error: File does not exist.");
+}
+
+print("--- File I/O test passed successfully! ---");

@@ -1,5 +1,6 @@
 #include "compiler.h"
 #include "vm.h"
+#include "fs.h"
 #include "stdio.h"
 #include "math.h"
 #include "os.h"
@@ -25,6 +26,8 @@ Value Compiler::loadNativeModule(const std::string& name) {
         return createRandomModule(vm);
     } else if (name == "json"){
         return createJsonModule(vm);
+    } else if (name == "fs") {      
+        return createFSModule(vm); 
     }
     throw std::runtime_error("Compiler Error: Unknown module '@import " + name + "'.");
 }
