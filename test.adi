@@ -1,14 +1,9 @@
 @import stdio;
-@import json;
 
-print("--- Testing AdiLang JSON Module v0.14.6 ---");
+print("--- Testing AdiLang v0.14.7 Error Recovery ---");
 
-let numbers = [10, 20, 30, 40];
-let jsonStr = json.stringify(numbers);
+// Intentional syntax errors to test panic-mode synchronization
+let x = ;
+let y = 10;
 
-print("Serialized JSON array:");
-print(jsonStr);
-
-let parsed = json.parse("sample_json_payload");
-print("Parsed raw result:");
-print(parsed);
+print(y);

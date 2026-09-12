@@ -7,12 +7,22 @@
 #include <memory>
 #include <string>
 #include <unordered_set>
+#include <iostream>
 
 class Parser {
 private:
     std::vector<Token> tokens;
     int current = 0;
     std::unordered_set<std::string> structNames;
+
+    // Error recovery flags
+    bool hadError = false;
+    bool panicMode = false;
+
+    // Error handling & Synchronization
+    void errorAt(const Token& token, const std::string& message);
+    void error(const std::string& message);
+    void synchronize();
 
     // Statements
     std::unique_ptr<Stmt> statement();

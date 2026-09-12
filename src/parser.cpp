@@ -5,14 +5,17 @@ Parser::Parser(const std::vector<Token>& tokens)
     : tokens(tokens)
 {
 } 
+
 Token Parser::peek()
 {
     return tokens[current];
 }
+
 Token Parser::previous()
 {
     return tokens[current - 1];
 }
+
 Token Parser::advance()
 {
     if (!check(TokenType::END_OF_FILE))
@@ -20,6 +23,7 @@ Token Parser::advance()
 
     return previous();
 }
+
 bool Parser::check(TokenType type)
 {
     if (peek().type == TokenType::END_OF_FILE)
@@ -27,6 +31,7 @@ bool Parser::check(TokenType type)
 
     return peek().type == type;
 }
+
 bool Parser::match(TokenType type)
 {
     if (!check(type))
@@ -35,6 +40,7 @@ bool Parser::match(TokenType type)
     advance();
     return true;
 }
+
 Token Parser::consume(
     TokenType type,
     const std::string& message)
@@ -42,15 +48,54 @@ Token Parser::consume(
     if (check(type))
         return advance();
 
-    std::cerr
-        << "Parser Error: "
-        << message
-        << " at line "
-        << peek().line
-        << '\n';
-
+    error(message);
     return peek();
 }
+
+void Parser::errorAt(const Token& token, const std::string& message) {
+    if (panicMode) return;
+    panicMode = true;
+
+    std::cerr << "Parser Error at line " << token.line << ", column " << token.column;
+    if (token.type == TokenType::END_OF_FILE) {
+        std::cerr << " at end";
+    } else {
+        std::cerr << " at '" << token.lexeme << "'";
+    }
+    std::cerr << ": " << message << "\n";
+    hadError = true;
+}
+
+void Parser::error(const std::string& message) {
+    errorAt(previous(), message);
+}
+
+void Parser::synchronize() {
+    panicMode = false;
+
+    while (peek().type != TokenType::END_OF_FILE) {
+        if (previous().type == TokenType::SEMICOLON) return;
+
+        switch (peek().type) {
+            case TokenType::CLASS:
+            case TokenType::STRUCT:
+            case TokenType::FN:
+            case TokenType::LET:
+            case TokenType::FOR:
+            case TokenType::WHILE:
+            case TokenType::IF:
+            case TokenType::PRINT:
+            case TokenType::RETURN:
+                return;
+            default:
+                // Do nothing, advance
+                break;
+        }
+
+        advance();
+    }
+}
+
 std::unique_ptr<Program> Parser::parse()
 {
     auto program = std::make_unique<Program>();
@@ -66,8 +111,13 @@ std::unique_ptr<Program> Parser::parse()
 
     return program;
 }
+
 std::unique_ptr<Stmt> Parser::statement()
 {
+    if (panicMode) {
+        synchronize();
+    }
+
     if (match(TokenType::AT)) {
         consume(TokenType::IMPORT, "Expect 'import' after '@'.");
         Token moduleNameToken = consume(TokenType::IDENTIFIER, "Expect module name after '@import'.");
@@ -118,9 +168,8 @@ std::unique_ptr<Stmt> Parser::statement()
         return printStatement();
     }
 
-    // Inside statement():
     if (match(TokenType::STRUCT) || match(TokenType::CLASS)) {
-        return structDeclaration(); // or classDeclaration()
+        return structDeclaration();
     }
 
     return expressionStatement();
@@ -159,6 +208,7 @@ std::unique_ptr<Stmt> Parser::block()
     consume(TokenType::RIGHT_BRACE, "Expected '}' after block.");
     return std::make_unique<BlockStatement>(std::move(statements));
 }
+
 std::unique_ptr<Stmt> Parser::variableDeclaration()
 {
     Token nameToken = consume(
@@ -183,6 +233,7 @@ std::unique_ptr<Stmt> Parser::variableDeclaration()
         std::move(initializer)
     );
 }
+
 std::unique_ptr<Expr> Parser::expression()
 {
     return assignment();
@@ -199,7 +250,6 @@ std::unique_ptr<Expr> Parser::assignment()
         Token opToken = previous();
         auto value = assignment();
 
-        // 1. Regular variable assignment: x = value
         if (auto varExpr = dynamic_cast<VariableExpr*>(expr.get()))
         {
             std::string name = varExpr->name;
@@ -221,7 +271,6 @@ std::unique_ptr<Expr> Parser::assignment()
             return std::make_unique<AssignExpr>(name, std::move(desugaredBinary));
         }
 
-        // 2. Index assignment: arr[i] = value
         if (auto indexGet = dynamic_cast<IndexGetExpr*>(expr.get()))
         {
             if (opToken.type == TokenType::EQUAL) {
@@ -232,13 +281,12 @@ std::unique_ptr<Expr> Parser::assignment()
                 );
             }
 
-            throw std::runtime_error("Parser Error: Compound assignment on array elements (like +=) not supported yet. Use arr[i] = arr[i] + val.");
+            throw std::runtime_error("Parser Error: Compound assignment on array elements (like +=) not supported yet.");
         }
-        // 3. Property / Field assignment: obj.field = value
+
         if (auto getExpr = dynamic_cast<GetExpr*>(expr.get()))
         {
             if (opToken.type == TokenType::EQUAL) {
-                std::cout << "[DEBUG] Successfully matched SetExpr for property assignment!\n";
                 return std::make_unique<SetExpr>(
                     std::move(getExpr->object),
                     getExpr->name,
@@ -248,11 +296,12 @@ std::unique_ptr<Expr> Parser::assignment()
             throw std::runtime_error("Parser Error: Compound assignment on object properties not supported.");
         }
 
-        std::cerr << "Parser Error: Invalid assignment target at line " << opToken.line << "\n";
+        error("Invalid assignment target.");
     }
 
     return expr;
 }
+
 std::unique_ptr<Expr> Parser::orExpression()
 {
     auto expr = andExpression();
@@ -280,6 +329,7 @@ std::unique_ptr<Expr> Parser::andExpression()
 
     return expr;
 }
+
 std::unique_ptr<Expr> Parser::equality()
 {
     auto expr = comparison();
@@ -312,6 +362,7 @@ std::unique_ptr<Expr> Parser::comparison()
 
     return expr;
 }
+
 std::unique_ptr<Expr> Parser::addition()
 {
     auto expr = multiplication();
@@ -322,9 +373,7 @@ std::unique_ptr<Expr> Parser::addition()
     )
     {
         TokenType op = previous().type;
-
         auto right = multiplication();
-
         expr = std::make_unique<BinaryExpr>(
             std::move(expr),
             op,
@@ -334,6 +383,7 @@ std::unique_ptr<Expr> Parser::addition()
 
     return expr;
 }
+
 std::unique_ptr<Expr> Parser::multiplication()
 {
     auto expr = unary(); 
@@ -347,6 +397,7 @@ std::unique_ptr<Expr> Parser::multiplication()
 
     return expr;
 }
+
 std::unique_ptr<Expr> Parser::unary()
 {
     if (match(TokenType::BANG) || match(TokenType::MINUS))
@@ -358,6 +409,7 @@ std::unique_ptr<Expr> Parser::unary()
 
     return call(); 
 }
+
 std::unique_ptr<Expr> Parser::primary()
 {
     if (match(TokenType::NUMBER))
@@ -391,13 +443,12 @@ std::unique_ptr<Expr> Parser::primary()
         return std::make_unique<VariableExpr>("this");
     }
 
-    // --- Array Literal: [elem1, elem2, ...] ---
     if (match(TokenType::LEFT_BRACKET)) {
         std::vector<std::unique_ptr<Expr>> elements;
         if (!check(TokenType::RIGHT_BRACKET)) {
             do {
                 if (elements.size() >= 255) {
-                    throw std::runtime_error("Parser Error: Cannot have more than 255 elements in an array literal.");
+                    error("Cannot have more than 255 elements in an array literal.");
                 }
                 elements.push_back(assignment());
             } while (match(TokenType::COMMA));
@@ -413,9 +464,7 @@ std::unique_ptr<Expr> Parser::primary()
         return expr;
     }
 
-    // --- Parse super expressions like super.init(name) ---
     if (match(TokenType::SUPER)) {
-        Token keyword = previous();
         consume(TokenType::DOT, "Expected '.' after 'super'.");
         Token methodToken = consume(TokenType::IDENTIFIER, "Expected superclass method name.");
         std::string methodName = methodToken.lexeme;
@@ -425,7 +474,7 @@ std::unique_ptr<Expr> Parser::primary()
             if (!check(TokenType::RIGHT_PAREN)) {
                 do {
                     if (arguments.size() >= 255) {
-                        throw std::runtime_error("Parser Error: Cannot have more than 255 arguments.");
+                        error("Cannot have more than 255 arguments.");
                     }
                     arguments.push_back(assignment());
                 } while (match(TokenType::COMMA));
@@ -436,9 +485,10 @@ std::unique_ptr<Expr> Parser::primary()
         return std::make_unique<SuperExpr>(methodName, std::move(arguments));
     }
 
-    std::cerr << "Parser Error: Expected expression\n";
+    error("Expected expression.");
     return nullptr;
 }
+
 std::unique_ptr<Stmt> Parser::printStatement()
 {
     bool hasParen = match(TokenType::LEFT_PAREN);
@@ -458,6 +508,7 @@ std::unique_ptr<Stmt> Parser::printStatement()
 
     return std::make_unique<PrintStatement>(std::move(expr));
 }
+
 std::unique_ptr<Stmt> Parser::expressionStatement()
 {
     auto expr = expression();
@@ -469,6 +520,7 @@ std::unique_ptr<Stmt> Parser::expressionStatement()
 
     return std::make_unique<ExpressionStatement>(std::move(expr));
 }
+
 std::unique_ptr<Stmt> Parser::whileStatement()
 {
     consume(TokenType::LEFT_PAREN, "Expected '(' after 'while'.");
@@ -479,11 +531,11 @@ std::unique_ptr<Stmt> Parser::whileStatement()
 
     return std::make_unique<WhileStatement>(std::move(condition), std::move(body));
 }
+
 std::unique_ptr<Stmt> Parser::forStatement()
 {
     consume(TokenType::LEFT_PAREN, "Expected '(' after 'for'.");
 
-    // 1. Initializer: 'let i = 0;' OR 'i = 0;' OR ';'
     std::unique_ptr<Stmt> initializer = nullptr;
     if (match(TokenType::SEMICOLON)) {
         initializer = nullptr;
@@ -493,26 +545,20 @@ std::unique_ptr<Stmt> Parser::forStatement()
         initializer = expressionStatement();
     }
 
-    // 2. Condition: 'i < 10;' (defaults to 'true' if omitted)
     std::unique_ptr<Expr> condition = nullptr;
     if (!check(TokenType::SEMICOLON)) {
         condition = expression();
     }
     consume(TokenType::SEMICOLON, "Expected ';' after loop condition.");
 
-    // 3. Increment: 'i = i + 1)' (optional)
     std::unique_ptr<Expr> increment = nullptr;
     if (!check(TokenType::RIGHT_PAREN)) {
         increment = expression();
     }
     consume(TokenType::RIGHT_PAREN, "Expected ')' after for clauses.");
 
-    // 4. Body Statement
     auto body = statement();
 
-    // --- Syntactic Desugaring to While Loop AST ---
-
-    // A. If increment exists, attach it to the end of the body in a block
     if (increment != nullptr) {
         std::vector<std::unique_ptr<Stmt>> bodyStmts;
         bodyStmts.push_back(std::move(body));
@@ -520,13 +566,11 @@ std::unique_ptr<Stmt> Parser::forStatement()
         body = std::make_unique<BlockStatement>(std::move(bodyStmts));
     }
 
-    // B. If condition is omitted (e.g. for (;;)), treat condition as true
     if (condition == nullptr) {
         condition = std::make_unique<VariableExpr>("true");
     }
     body = std::make_unique<WhileStatement>(std::move(condition), std::move(body));
 
-    // C. If initializer exists, wrap both initializer and while loop in an outer scope block
     if (initializer != nullptr) {
         std::vector<std::unique_ptr<Stmt>> blockStmts;
         blockStmts.push_back(std::move(initializer));
@@ -536,6 +580,7 @@ std::unique_ptr<Stmt> Parser::forStatement()
 
     return body;
 }
+
 std::unique_ptr<Stmt> Parser::breakStatement()
 {
     consume(TokenType::SEMICOLON, "Expected ';' after 'break'.");
@@ -547,36 +592,26 @@ std::unique_ptr<Stmt> Parser::continueStatement()
     consume(TokenType::SEMICOLON, "Expected ';' after 'continue'.");
     return std::make_unique<ContinueStatement>();
 }
-std::unique_ptr<Stmt> Parser::functionDeclaration() {
-    if (!match(TokenType::IDENTIFIER)) {
-        throw std::runtime_error("Parser Error: Expected function name after 'fn'.");
-    }
-    std::string name = previous().lexeme;
 
-    if (!match(TokenType::LEFT_PAREN)) {
-        throw std::runtime_error("Parser Error: Expected '(' after function name.");
-    }
+std::unique_ptr<Stmt> Parser::functionDeclaration() {
+    Token nameToken = consume(TokenType::IDENTIFIER, "Expected function name after 'fn'.");
+    std::string name = nameToken.lexeme;
+
+    consume(TokenType::LEFT_PAREN, "Expected '(' after function name.");
 
     std::vector<std::string> parameters;
     if (!check(TokenType::RIGHT_PAREN)) {
         do {
             if (parameters.size() >= 255) {
-                throw std::runtime_error("Parser Error: Cannot have more than 255 parameters.");
+                error("Cannot have more than 255 parameters.");
             }
-            if (!match(TokenType::IDENTIFIER)) {
-                throw std::runtime_error("Parser Error: Expected parameter name.");
-            }
-            parameters.push_back(previous().lexeme);
+            Token paramToken = consume(TokenType::IDENTIFIER, "Expected parameter name.");
+            parameters.push_back(paramToken.lexeme);
         } while (match(TokenType::COMMA));
     }
 
-    if (!match(TokenType::RIGHT_PAREN)) {
-        throw std::runtime_error("Parser Error: Expected ')' after parameters.");
-    }
-
-    if (!match(TokenType::LEFT_BRACE)) {
-        throw std::runtime_error("Parser Error: Expected '{' before function body.");
-    }
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after parameters.");
+    consume(TokenType::LEFT_BRACE, "Expected '{' before function body.");
 
     auto bodyStmt = block(); 
     auto body = std::unique_ptr<BlockStatement>(dynamic_cast<BlockStatement*>(bodyStmt.release()));
@@ -585,18 +620,16 @@ std::unique_ptr<Stmt> Parser::functionDeclaration() {
 }
 
 std::unique_ptr<Stmt> Parser::returnStatement() {
-    Token keyword = previous();
     std::unique_ptr<Expr> value = nullptr;
     if (!check(TokenType::SEMICOLON)) {
         value = expression();
     }
 
-    if (!match(TokenType::SEMICOLON)) {
-        throw std::runtime_error("Parser Error: Expected ';' after return value.");
-    }
+    consume(TokenType::SEMICOLON, "Expected ';' after return value.");
 
     return std::make_unique<ReturnStatement>(std::move(value));
 }
+
 std::unique_ptr<Expr> Parser::call() {
     auto expr = primary();
 
@@ -608,7 +641,7 @@ std::unique_ptr<Expr> Parser::call() {
                     std::vector<std::unique_ptr<Expr>> arguments;
                     if (!check(TokenType::RIGHT_PAREN)) {
                         do {
-                            arguments.push_back(assignment()); // Updated to assignment()
+                            arguments.push_back(assignment());
                         } while (match(TokenType::COMMA));
                     }
                     consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
@@ -621,7 +654,7 @@ std::unique_ptr<Expr> Parser::call() {
             }
         } 
         else if (match(TokenType::LEFT_BRACKET)) {
-            auto index = assignment(); // Updated to assignment()
+            auto index = assignment();
             consume(TokenType::RIGHT_BRACKET, "Expected ']' after array index.");
             expr = std::make_unique<IndexGetExpr>(std::move(expr), std::move(index));
         }
@@ -642,15 +675,13 @@ std::unique_ptr<Expr> Parser::finishCall(std::unique_ptr<Expr> callee) {
     if (!check(TokenType::RIGHT_PAREN)) {
         do {
             if (arguments.size() >= 255) {
-                throw std::runtime_error("Parser Error: Cannot have more than 255 arguments.");
+                error("Cannot have more than 255 arguments.");
             }
             arguments.push_back(assignment());
         } while (match(TokenType::COMMA));
     }
 
-    if (!match(TokenType::RIGHT_PAREN)) {
-        throw std::runtime_error("Parser Error: Expected ')' after arguments.");
-    }
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
 
     return std::make_unique<CallExpr>(std::move(callee), std::move(arguments));
 }
@@ -660,7 +691,6 @@ std::unique_ptr<Stmt> Parser::structDeclaration() {
     std::string name = nameToken.lexeme;
     structNames.insert(name);
 
-    // Optional inheritance check: struct Dog < Animal
     std::optional<std::string> superclass = std::nullopt;
     if (match(TokenType::LESS)) {
         Token superclassToken = consume(TokenType::IDENTIFIER, "Expected superclass name after '<'.");
@@ -670,13 +700,12 @@ std::unique_ptr<Stmt> Parser::structDeclaration() {
     consume(TokenType::LEFT_BRACE, "Expected '{' before struct body.");
 
     std::vector<std::string> fields;
-    std::vector<std::shared_ptr<FunctionStatement>> methods; // Matches FunctionStatement
+    std::vector<std::shared_ptr<FunctionStatement>> methods;
 
     if (!check(TokenType::RIGHT_BRACE)) {
         do {
             Token identifierToken = consume(TokenType::IDENTIFIER, "Expected field or method name.");
             
-            // Check if it's a method declaration (followed by '(')
             if (match(TokenType::LEFT_PAREN)) {
                 std::string methodName = identifierToken.lexeme;
                 std::vector<std::string> parameters;
@@ -684,7 +713,7 @@ std::unique_ptr<Stmt> Parser::structDeclaration() {
                 if (!check(TokenType::RIGHT_PAREN)) {
                     do {
                         if (parameters.size() >= 255) {
-                            throw std::runtime_error("Parser Error: Cannot have more than 255 parameters.");
+                            error("Cannot have more than 255 parameters.");
                         }
                         Token paramToken = consume(TokenType::IDENTIFIER, "Expected parameter name.");
                         parameters.push_back(paramToken.lexeme);
@@ -699,17 +728,13 @@ std::unique_ptr<Stmt> Parser::structDeclaration() {
 
                 methods.push_back(std::make_shared<FunctionStatement>(methodName, std::move(parameters), std::move(body)));
             } else {
-                // Regular field
                 fields.push_back(identifierToken.lexeme);
             }
 
-            // Optional comma or semicolon separator between fields/methods
             match(TokenType::COMMA);
             match(TokenType::SEMICOLON);
 
         } while (!check(TokenType::RIGHT_BRACE) && !check(TokenType::END_OF_FILE));
-
-        
     }
 
     consume(TokenType::RIGHT_BRACE, "Expected '}' after struct body.");
