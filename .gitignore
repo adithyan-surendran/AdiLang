@@ -1,4 +1,4 @@
 build/
 adilang
-*.o
-.vscode/
+test_output.txt
+.DS_Store
