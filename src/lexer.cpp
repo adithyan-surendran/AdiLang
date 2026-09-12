@@ -125,6 +125,10 @@ void Lexer::scanToken() {
             addToken(TokenType::COMMA);
             break;
 
+        case ':':
+            addToken(TokenType::COLON);
+            break;
+
         case ';':
             addToken(TokenType::SEMICOLON);
             break;

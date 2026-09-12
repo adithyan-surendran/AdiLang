@@ -518,14 +518,34 @@ std::unique_ptr<Expr> Parser::primary()
         std::vector<std::unique_ptr<Expr>> elements;
         if (!check(TokenType::RIGHT_BRACKET)) {
             do {
-                if (elements.size() >= 255) {
-                    error("Cannot have more than 255 elements in an array literal.");
-                }
                 elements.push_back(assignment());
             } while (match(TokenType::COMMA));
         }
         consume(TokenType::RIGHT_BRACKET, "Expected ']' after array elements.");
         auto expr = std::make_unique<ArrayExpr>(std::move(elements));
+        expr->line = line;
+        return expr;
+    }
+
+    if (match(TokenType::LEFT_BRACE)) {
+        int line = previous().line;
+        std::vector<std::pair<std::string, std::unique_ptr<Expr>>> entries;
+        
+        if (!check(TokenType::RIGHT_BRACE)) {
+            do {
+                Token keyToken = consume(TokenType::STRING, "Expected string literal key in map.");
+                std::string key = keyToken.lexeme;
+                if (key.front() == '"' && key.back() == '"') {
+                    key = key.substr(1, key.size() - 2);
+                }
+
+                consume(TokenType::COLON, "Expected ':' after map key.");
+                auto value = assignment();
+                entries.push_back({key, std::move(value)});
+            } while (match(TokenType::COMMA));
+        }
+        consume(TokenType::RIGHT_BRACE, "Expected '}' after map entries.");
+        auto expr = std::make_unique<MapExpr>(std::move(entries));
         expr->line = line;
         return expr;
     }
@@ -564,7 +584,6 @@ std::unique_ptr<Expr> Parser::primary()
     error("Expected expression.");
     return nullptr;
 }
-
 std::unique_ptr<Stmt> Parser::printStatement()
 {
     int line = previous().line;

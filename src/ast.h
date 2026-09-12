@@ -28,6 +28,14 @@ public:
     }
 };
 
+class MapExpr : public Expr {
+public:
+    std::vector<std::pair<std::string, std::unique_ptr<Expr>>> entries;
+
+    explicit MapExpr(std::vector<std::pair<std::string, std::unique_ptr<Expr>>> entries)
+        : entries(std::move(entries)) {}
+};
+
 class StringExpr : public Expr
 {
 public:

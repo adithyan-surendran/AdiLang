@@ -23,6 +23,7 @@ struct AdiBoundMethod;
 struct Environment;
 struct AdiUpvalue;
 struct AdiClosure;
+struct AdiMap;
 
 // Master base class for all heap-allocated objects tracked by the GC
 struct AdiObject {
@@ -42,6 +43,7 @@ using Value = std::variant<
     AdiStructDef*, 
     AdiInstance*, 
     AdiBoundMethod*,
+    AdiMap*,
     AdiClosure*
 >;
 
@@ -55,7 +57,7 @@ struct AdiUpvalue : public AdiObject {
     AdiUpvalue(Value* loc) : location(loc), closed(0.0), next(nullptr) {}
 };
 
-// 3. Fully define AdiFunction (Value is already defined, so signatures work)
+// 3. Fully define AdiFunction
 struct AdiFunction : public AdiObject {
     int arity = 0;
     int upvalueCount = 0;
@@ -81,7 +83,7 @@ struct AdiFunction : public AdiObject {
     Value call(class Interpreter& interpreter, const std::vector<Value>& arguments);
 };
 
-// 4. Fully define AdiClosure (AdiFunction is fully complete, so `func->arity` works)
+// 4. Fully define AdiClosure
 struct AdiClosure : public AdiObject {
     AdiFunction* function;
     std::vector<AdiUpvalue*> upvalues;
@@ -91,7 +93,15 @@ struct AdiClosure : public AdiObject {
     AdiClosure(AdiFunction* func) : function(func), arity(func ? func->arity : 0) {}
 };
 
-// 5. Define remaining object types
+// 5. Define remaining object types (AdiMap now has AdiObject and Value fully defined)
+struct AdiMap : public AdiObject {
+    std::unordered_map<std::string, Value> entries;
+
+    AdiMap() = default;
+    explicit AdiMap(std::unordered_map<std::string, Value> entries)
+        : entries(std::move(entries)) {}
+};
+
 struct AdiArray : public AdiObject {
     std::vector<Value> elements;
 

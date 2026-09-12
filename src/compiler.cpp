@@ -51,7 +51,7 @@ bool Compiler::compile(const Program* program, Chunk* chunk) {
     } catch (const std::runtime_error& e) {
         std::cerr << "Compiler Error: " << e.what() << "\n";
         if (current) {
-            delete current;
+            delete current; // <-- THIS CAUSES THE SEGFAULT
             current = nullptr;
         }
         return false;
@@ -347,6 +347,13 @@ void Compiler::compileExpression(const Expr* expr) {
 
         emitBytes(static_cast<uint8_t>(OpCode::OP_SUPER), makeConstant(superExpr->method), line);
         emitByte(static_cast<uint8_t>(superExpr->arguments.size()), line);
+    }
+    else if (auto mapExpr = dynamic_cast<const MapExpr*>(expr)) {
+        for (const auto& [key, valExpr] : mapExpr->entries) {
+            emitConstant(key);
+            compileExpression(valExpr.get());
+        }
+        emitBytes(static_cast<uint8_t>(OpCode::OP_MAP), static_cast<uint8_t>(mapExpr->entries.size()), line);
     }
     else if (auto arrExpr = dynamic_cast<const ArrayExpr*>(expr)) {
         for (const auto& element : arrExpr->elements) {

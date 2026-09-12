@@ -73,7 +73,6 @@ private:
             return currentUpvalue;
         }
 
-        // Allocate raw pointer via GC manager instead of std::make_shared
         AdiUpvalue* createdUpvalue = allocateObject<AdiUpvalue>();
         createdUpvalue->location = local;
         createdUpvalue->next = currentUpvalue;
@@ -130,6 +129,17 @@ private:
             std::cout << (std::get<bool>(value) ? "true" : "false");
         } else if (std::holds_alternative<std::string>(value)) {
             std::cout << std::get<std::string>(value);
+        } else if (std::holds_alternative<AdiMap*>(value)) {
+            std::cout << "{";
+            auto map = std::get<AdiMap*>(value);
+            bool first = true;
+            for (const auto& [k, v] : map->entries) {
+                if (!first) std::cout << ", ";
+                std::cout << "\"" << k << "\": ";
+                printValue(v);
+                first = false;
+            }
+            std::cout << "}";
         } else if (std::holds_alternative<AdiFunction*>(value)) {
             std::cout << "<fn " << std::get<AdiFunction*>(value)->name << ">";
         } else if (std::holds_alternative<AdiClosure*>(value)) {
@@ -142,6 +152,8 @@ private:
     void markValue(Value value) {
         if (std::holds_alternative<AdiArray*>(value)) {
             markObject(std::get<AdiArray*>(value));
+        } else if (std::holds_alternative<AdiMap*>(value)) {  
+            markObject(std::get<AdiMap*>(value));
         } else if (std::holds_alternative<AdiClosure*>(value)) {
             markObject(std::get<AdiClosure*>(value));
         } else if (std::holds_alternative<AdiFunction*>(value)) {
@@ -174,6 +186,10 @@ private:
         } else if (auto array = dynamic_cast<AdiArray*>(object)) {
             for (const auto& val : array->elements) {
                 markValue(val);
+            }
+        } else if (auto map = dynamic_cast<AdiMap*>(object)) {     
+            for (const auto& [key, val] : map->entries) {          
+                markValue(val);                                     
             }
         } else if (auto upvalue = dynamic_cast<AdiUpvalue*>(object)) {
             if (upvalue->location == &upvalue->closed) {
@@ -223,7 +239,7 @@ private:
                     previous->next = current;
                 }
 
-                bytesAllocated -= sizeof(*unreached); // Decrement tracked heap size
+                bytesAllocated -= sizeof(*unreached);
                 delete unreached;
             }
         }
@@ -234,13 +250,12 @@ public:
     T* allocateObject(Args&&... args) {
         if (bytesAllocated > nextGC) {
             collectGarbage();
-            nextGC = bytesAllocated * 2; // Double the threshold after collection
+            nextGC = bytesAllocated * 2;
         }
 
         T* object = new T(std::forward<Args>(args)...);
         bytesAllocated += sizeof(T);
         
-        // Explicitly cast to AdiObject* for the GC linked list tracking
         AdiObject* gcObject = static_cast<AdiObject*>(object);
         gcObject->next = objects;
         objects = gcObject;
@@ -475,19 +490,13 @@ public:
 
                     if (std::holds_alternative<AdiNativeMethod*>(callee)) {
                         AdiNativeMethod* native = std::get<AdiNativeMethod*>(callee);
-                        
-                        // Collect arguments from the stack
                         std::vector<Value> args;
                         for (int i = 0; i < argCount; i++) {
                             args.push_back(peek(argCount - 1 - i));
                         }
-
-                        // Pop the arguments and the callee off the stack
                         for (int i = 0; i <= argCount; i++) {
                             pop();
                         }
-
-                        // Execute the native function pointer
                         Value result = native->function(native->self, args);
                         push(result);
                         break;
@@ -709,12 +718,40 @@ public:
                     push(allocateObject<AdiArray>(std::move(elements)));
                     break;
                 }
+                case OpCode::OP_MAP: {
+                    uint8_t pairCount = chunk->code[ip++];
+                    currentFrame->ip = ip;
+                    std::unordered_map<std::string, Value> entries;
+                    for (int i = 0; i < pairCount; i++) {
+                        Value val = pop();
+                        Value keyVal = pop();
+                        std::string key = std::get<std::string>(keyVal);
+                        entries[key] = val;
+                    }
+                    push(allocateObject<AdiMap>(std::move(entries)));
+                    break;
+                }
                 case OpCode::OP_INDEX_GET: {
                     Value indexVal = pop();
                     Value targetVal = pop();
 
+                    if (std::holds_alternative<AdiMap*>(targetVal)) {
+                        if (!std::holds_alternative<std::string>(indexVal)) {
+                            runtimeError("Map key must be a string.");
+                            return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                        }
+                        AdiMap* map = std::get<AdiMap*>(targetVal);
+                        std::string key = std::get<std::string>(indexVal);
+                        if (map->entries.find(key) == map->entries.end()) {
+                            runtimeError("Key '" + key + "' not found in map.");
+                            return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                        }
+                        push(map->entries[key]);
+                        break;
+                    }
+
                     if (!std::holds_alternative<AdiArray*>(targetVal)) {
-                        runtimeError("Only arrays can be indexed.");
+                        runtimeError("Only arrays and maps can be indexed.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     if (!std::holds_alternative<double>(indexVal)) {
@@ -738,8 +775,20 @@ public:
                     Value targetVal = pop();
                     Value val = pop();
 
+                    if (std::holds_alternative<AdiMap*>(targetVal)) {
+                        if (!std::holds_alternative<std::string>(indexVal)) {
+                            runtimeError("Map key must be a string.");
+                            return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                        }
+                        AdiMap* map = std::get<AdiMap*>(targetVal);
+                        std::string key = std::get<std::string>(indexVal);
+                        map->entries[key] = val;
+                        push(val);
+                        break;
+                    }
+
                     if (!std::holds_alternative<AdiArray*>(targetVal)) {
-                        runtimeError("Only arrays can be assigned by index.");
+                        runtimeError("Only arrays and maps can be assigned by index.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     if (!std::holds_alternative<double>(indexVal)) {
