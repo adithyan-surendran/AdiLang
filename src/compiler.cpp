@@ -5,6 +5,7 @@
 #include "os.h"
 #include "string.h"
 #include "time.h"
+#include "random.h"
 #include <stdexcept>
 #include <iostream>
 
@@ -19,6 +20,8 @@ Value Compiler::loadNativeModule(const std::string& name) {
         return createOSModule(vm);
     } else if (name == "time"){
         return createTimeModule(vm);
+    } else if (name == "random"){
+        return createRandomModule(vm);
     }
     throw std::runtime_error("Compiler Error: Unknown module '@import " + name + "'.");
 }

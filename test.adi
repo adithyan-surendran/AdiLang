@@ -1,19 +1,12 @@
 @import stdio;
-@import time;
+@import random;
 
-print("--- Testing AdiLang Time Module v0.14.4 ---");
+print("--- Testing AdiLang Random Module v0.14.5 ---");
 
-let start = time.now();
-print("Start epoch timestamp:");
-print(start);
+let randFloat = random.float();
+print("Random float (0.0 to 1.0):");
+print(randFloat);
 
-print("Sleeping for 1 second...");
-time.sleep(1.0);
-
-let end = time.now();
-print("End epoch timestamp:");
-print(end);
-
-let elapsed = end - start;
-print("Elapsed time (seconds):");
-print(elapsed);
+let randInt = random.int(1, 10);
+print("Random int (1 to 10):");
+print(randInt);
