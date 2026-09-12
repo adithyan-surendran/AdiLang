@@ -52,6 +52,24 @@ private:
     std::unordered_map<std::string, Value> globals;
     AdiUpvalue* openUpvalues = nullptr;
 
+    void runtimeError(const std::string& message) {
+        std::cerr << "Runtime Error: " << message << "\n";
+        for (int i = frameCount - 1; i >= 0; i--) {
+            CallFrame* frame = &frames[i];
+            Chunk* targetChunk = frame->closure->function->chunk.get();
+            size_t instruction = (frame->ip > 0) ? frame->ip - 1 : 0;
+            int line = (instruction < targetChunk->lines.size()) ? targetChunk->lines[instruction] : 0;
+            
+            std::string name = frame->closure->function->name;
+            if (name.empty() || name == "script") {
+                std::cerr << "  at [line " << line << "] in script\n";
+            } else {
+                std::cerr << "  at [line " << line << "] in " << name << "()\n";
+            }
+        }
+        resetStack();
+    }
+
     AdiUpvalue* captureUpvalue(Value* local) {
         AdiUpvalue* prevUpvalue = nullptr;
         AdiUpvalue* currentUpvalue = openUpvalues;
@@ -99,7 +117,7 @@ private:
 
     Value pop() {
         if (stack.empty()) {
-            std::cerr << "Runtime Error: Stack underflow.\n";
+            runtimeError("Stack underflow.");
             return 0.0;
         }
         Value val = stack.back();
@@ -109,8 +127,7 @@ private:
 
     Value peek(int distance) {
         if (stack.size() <= static_cast<size_t>(distance)) {
-            std::cerr << "Runtime Error: Stack peek out of bounds (size: " 
-                      << stack.size() << ", distance: " << distance << ").\n";
+            runtimeError("Stack peek out of bounds.");
             return 0.0;
         }
         return stack[stack.size() - 1 - distance];
@@ -279,7 +296,7 @@ public:
                     currentFrame->ip = ip;
                     std::string name = std::get<std::string>(chunk->constants[nameIndex]);
                     if (globals.find(name) == globals.end()) {
-                        std::cerr << "Runtime Error: Undefined variable '" << name << "'.\n";
+                        runtimeError("Undefined variable '" + name + "'.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     push(globals[name]);
@@ -290,7 +307,7 @@ public:
                     currentFrame->ip = ip;
                     std::string name = std::get<std::string>(chunk->constants[nameIndex]);
                     if (globals.find(name) == globals.end()) {
-                        std::cerr << "Runtime Error: Undefined variable '" << name << "'.\n";
+                        runtimeError("Undefined variable '" + name + "'.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     globals[name] = stack.back();
@@ -305,7 +322,7 @@ public:
                     } else if (std::holds_alternative<std::string>(a) && std::holds_alternative<std::string>(b)) {
                         push(std::get<std::string>(a) + std::get<std::string>(b));
                     } else {
-                        std::cerr << "Runtime Error: Operands must be two numbers or two strings.\n";
+                        runtimeError("Operands must be two numbers or two strings.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     break;
@@ -316,7 +333,7 @@ public:
                     if (std::holds_alternative<double>(a) && std::holds_alternative<double>(b)) {
                         push(std::get<double>(a) - std::get<double>(b));
                     } else {
-                        std::cerr << "Runtime Error: Operands must be numbers.\n";
+                        runtimeError("Operands must be numbers.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     break;
@@ -327,7 +344,7 @@ public:
                     if (std::holds_alternative<double>(a) && std::holds_alternative<double>(b)) {
                         push(std::get<double>(a) * std::get<double>(b));
                     } else {
-                        std::cerr << "Runtime Error: Operands must be numbers.\n";
+                        runtimeError("Operands must be numbers.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     break;
@@ -338,12 +355,12 @@ public:
                     if (std::holds_alternative<double>(a) && std::holds_alternative<double>(b)) {
                         double divisor = std::get<double>(b);
                         if (divisor == 0.0) {
-                            std::cerr << "Runtime Error: Division by zero.\n";
+                            runtimeError("Division by zero.");
                             return InterpretResult::INTERPRET_RUNTIME_ERROR;
                         }
                         push(std::get<double>(a) / divisor);
                     } else {
-                        std::cerr << "Runtime Error: Operands must be numbers.\n";
+                        runtimeError("Operands must be numbers.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     break;
@@ -353,7 +370,7 @@ public:
                     if (std::holds_alternative<double>(val)) {
                         push(-std::get<double>(val));
                     } else {
-                        std::cerr << "Runtime Error: Operand must be a number.\n";
+                        runtimeError("Operand must be a number.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     break;
@@ -375,7 +392,7 @@ public:
                     if (std::holds_alternative<double>(a) && std::holds_alternative<double>(b)) {
                         push(std::get<double>(a) > std::get<double>(b));
                     } else {
-                        std::cerr << "Runtime Error: Operands must be numbers.\n";
+                        runtimeError("Operands must be numbers.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     break;
@@ -386,7 +403,7 @@ public:
                     if (std::holds_alternative<double>(a) && std::holds_alternative<double>(b)) {
                         push(std::get<double>(a) < std::get<double>(b));
                     } else {
-                        std::cerr << "Runtime Error: Operands must be numbers.\n";
+                        runtimeError("Operands must be numbers.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     break;
@@ -421,7 +438,7 @@ public:
                     currentFrame->ip = ip;
                     size_t targetIndex = currentFrame->slots + slot;
                     if (targetIndex >= stack.size()) {
-                        std::cerr << "Runtime Error: Local slot out of bounds.\n";
+                        runtimeError("Local slot out of bounds.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     push(stack[targetIndex]);
@@ -432,7 +449,7 @@ public:
                     currentFrame->ip = ip;
                     size_t targetIndex = currentFrame->slots + slot;
                     if (targetIndex >= stack.size()) {
-                        std::cerr << "Runtime Error: Local slot out of bounds for assignment.\n";
+                        runtimeError("Local slot out of bounds for assignment.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     stack[targetIndex] = peek(0);
@@ -474,17 +491,17 @@ public:
                     } else if (std::holds_alternative<AdiClosure*>(callee)) {
                         closure = std::get<AdiClosure*>(callee);
                     } else {
-                        std::cerr << "Runtime Error: Can only call functions and methods.\n";
+                        runtimeError("Can only call functions and methods.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
                     if (closure->function->arity != argCount) {
-                        std::cerr << "Runtime Error: Expected " << closure->function->arity << " arguments but got " << argCount << ".\n";
+                        runtimeError("Expected " + std::to_string(closure->function->arity) + " arguments but got " + std::to_string(argCount) + ".");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
                     if (frameCount == FRAMES_MAX) {
-                        std::cerr << "Runtime Error: Stack overflow.\n";
+                        runtimeError("Stack overflow.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -537,12 +554,12 @@ public:
                         AdiFunction* function = initIt->second;
 
                         if (function->arity != argCount) {
-                            std::cerr << "Runtime Error: Expected " << function->arity << " arguments but got " << argCount << ".\n";
+                            runtimeError("Expected " + std::to_string(function->arity) + " arguments but got " + std::to_string(argCount) + ".");
                             return InterpretResult::INTERPRET_RUNTIME_ERROR;
                         }
 
                         if (frameCount == FRAMES_MAX) {
-                            std::cerr << "Runtime Error: Stack overflow.\n";
+                            runtimeError("Stack overflow.");
                             return InterpretResult::INTERPRET_RUNTIME_ERROR;
                         }
 
@@ -556,7 +573,7 @@ public:
                         currentFrame = frame;
                     } else {
                         if (argCount > 0) {
-                            std::cerr << "Runtime Error: Struct '" << blueprint->name << "' has no init method but received " << argCount << " arguments.\n";
+                            runtimeError("Struct '" + blueprint->name + "' has no init method but received arguments.");
                             return InterpretResult::INTERPRET_RUNTIME_ERROR;
                         }
                     }
@@ -569,7 +586,7 @@ public:
                     Value targetVal = pop();
 
                     if (!std::holds_alternative<AdiInstance*>(targetVal)) {
-                        std::cerr << "Runtime Error: Only instances have properties.\n";
+                        runtimeError("Only instances have properties.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -583,7 +600,7 @@ public:
                         AdiBoundMethod* bound = allocateObject<AdiBoundMethod>(instance, method);
                         push(bound);
                     } else {
-                        std::cerr << "Runtime Error: Undefined property '" << name << "'.\n";
+                        runtimeError("Undefined property '" + name + "'.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     break;
@@ -596,7 +613,7 @@ public:
                     Value value = pop();
 
                     if (!std::holds_alternative<AdiInstance*>(targetVal)) {
-                        std::cerr << "Runtime Error: Only instances have fields.\n";
+                        runtimeError("Only instances have fields.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -639,13 +656,13 @@ public:
 
                     auto methodIt = superclass->methods.find(methodName);
                     if (methodIt == superclass->methods.end()) {
-                        std::cerr << "Runtime Error: Superclass '" << superclass->name << "' has no method '" << methodName << "'.\n";
+                        runtimeError("Superclass '" + superclass->name + "' has no method '" + methodName + "'.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
                     AdiFunction* function = methodIt->second;
                     if (function->arity != argCount) {
-                        std::cerr << "Runtime Error: Expected " << function->arity << " arguments for super." << methodName << " but got " << argCount << ".\n";
+                        runtimeError("Expected " + std::to_string(function->arity) + " arguments for super method.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -655,7 +672,7 @@ public:
                     stack.erase(stack.begin() + receiverSlot - 1);
 
                     if (frameCount == FRAMES_MAX) {
-                        std::cerr << "Runtime Error: Stack overflow.\n";
+                        runtimeError("Stack overflow.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -685,11 +702,11 @@ public:
                     Value targetVal = pop();
 
                     if (!std::holds_alternative<AdiArray*>(targetVal)) {
-                        std::cerr << "Runtime Error: Only arrays can be indexed.\n";
+                        runtimeError("Only arrays can be indexed.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     if (!std::holds_alternative<double>(indexVal)) {
-                        std::cerr << "Runtime Error: Array index must be a number.\n";
+                        runtimeError("Array index must be a number.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -697,7 +714,7 @@ public:
                     int idx = static_cast<int>(std::get<double>(indexVal));
 
                     if (idx < 0 || static_cast<size_t>(idx) >= arr->elements.size()) {
-                        std::cerr << "Runtime Error: Array index out of bounds: " << idx << "\n";
+                        runtimeError("Array index out of bounds.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -710,11 +727,11 @@ public:
                     Value val = pop();
 
                     if (!std::holds_alternative<AdiArray*>(targetVal)) {
-                        std::cerr << "Runtime Error: Only arrays can be assigned by index.\n";
+                        runtimeError("Only arrays can be assigned by index.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
                     if (!std::holds_alternative<double>(indexVal)) {
-                        std::cerr << "Runtime Error: Array index must be a number.\n";
+                        runtimeError("Array index must be a number.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -722,7 +739,7 @@ public:
                     int idx = static_cast<int>(std::get<double>(indexVal));
 
                     if (idx < 0 || static_cast<size_t>(idx) >= arr->elements.size()) {
-                        std::cerr << "Runtime Error: Array assignment index out of bounds: " << idx << "\n";
+                        runtimeError("Array assignment index out of bounds.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
 
@@ -748,7 +765,7 @@ public:
                         if (isLocal) {
                             size_t localIdx = currentFrame->slots + index;
                             if (localIdx >= stack.size()) {
-                                std::cerr << "Runtime Error: Upvalue local index out of bounds.\n";
+                                runtimeError("Upvalue local index out of bounds.");
                                 return InterpretResult::INTERPRET_RUNTIME_ERROR;
                             }
                             closure->upvalues.push_back(captureUpvalue(&stack[localIdx]));
@@ -778,8 +795,7 @@ public:
                     break;
                 }
                 default:
-                    std::cerr << "Unknown opcode execution error: " << static_cast<int>(instruction) 
-                            << " at IP: " << (ip - 1) << "\n";
+                    runtimeError("Unknown opcode execution error.");
                     return InterpretResult::INTERPRET_RUNTIME_ERROR;
             }
         }

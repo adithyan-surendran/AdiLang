@@ -1,9 +1,9 @@
 @import stdio;
 
-print("--- Testing AdiLang v0.14.7 Error Recovery ---");
+print("--- Testing AdiLang v0.15.0 Stack Trace ---");
 
-// Intentional syntax errors to test panic-mode synchronization
-let x = ;
-let y = 10;
+fn faulty() {
+    let x = 10 / 0;
+}
 
-print(y);
+faulty();

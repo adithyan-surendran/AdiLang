@@ -6,6 +6,7 @@
 #include <memory>
 #include <unordered_map>
 #include <variant>
+#include <stdexcept>
 #include <functional>
 
 // Forward declarations for all custom object types used in pointers
