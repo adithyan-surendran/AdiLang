@@ -45,6 +45,7 @@ struct ClassCompiler {
 
 class Compiler {
 private:
+    int currentLine = 0;
     VM* vm;
     FunctionCompiler* current = nullptr;
     ClassCompiler* currentClass = nullptr;

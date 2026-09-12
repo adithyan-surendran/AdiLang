@@ -13,6 +13,7 @@
 class Expr
 {
 public:
+    int line = 0;
     virtual ~Expr() = default;
 };
 
@@ -192,6 +193,7 @@ public:
 class Stmt
 {
 public:
+    int line = 0;
     virtual ~Stmt() = default;
 };
 

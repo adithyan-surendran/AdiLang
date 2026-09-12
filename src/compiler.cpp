@@ -41,9 +41,8 @@ bool Compiler::compile(const Program* program, Chunk* chunk) {
             compileNode(stmt.get());
         }
         
-        // Append implicit return to balance the script frame and prevent core dumps
-        emitByte(static_cast<uint8_t>(OpCode::OP_NIL));
-        emitByte(static_cast<uint8_t>(OpCode::OP_RETURN));
+        emitByte(static_cast<uint8_t>(OpCode::OP_NIL), 0);
+        emitByte(static_cast<uint8_t>(OpCode::OP_RETURN), 0);
 
         AdiFunction* compiledFunction = endCompiler();
         
@@ -60,12 +59,13 @@ bool Compiler::compile(const Program* program, Chunk* chunk) {
 }
 
 void Compiler::compileNode(const Stmt* stmt) {
+    int line = stmt->line;
+
     if (auto varDecl = dynamic_cast<const VariableDeclaration*>(stmt)) {
         compileExpression(varDecl->initializer.get());
         uint8_t global = parseVariable(varDecl->name);
         defineVariable(global);
     }
-
     else if (auto importStmt = dynamic_cast<const ImportStmt*>(stmt)) {
         Value moduleObj = loadNativeModule(importStmt->moduleName);
         
@@ -83,14 +83,13 @@ void Compiler::compileNode(const Stmt* stmt) {
             defineVariable(nameConst);
         }
     }
-
     else if (auto printStmt = dynamic_cast<const PrintStatement*>(stmt)) {
         compileExpression(printStmt->expression.get());
-        emitByte(static_cast<uint8_t>(OpCode::OP_PRINT));
+        emitByte(static_cast<uint8_t>(OpCode::OP_PRINT), line);
     }
     else if (auto exprStmt = dynamic_cast<const ExpressionStatement*>(stmt)) {
         compileExpression(exprStmt->expression.get());
-        emitByte(static_cast<uint8_t>(OpCode::OP_POP));
+        emitByte(static_cast<uint8_t>(OpCode::OP_POP), line);
     }
     else if (auto blockStmt = dynamic_cast<const BlockStatement*>(stmt)) {
         beginScope();
@@ -102,13 +101,13 @@ void Compiler::compileNode(const Stmt* stmt) {
     else if (auto ifStmt = dynamic_cast<const IfStatement*>(stmt)) {
         compileExpression(ifStmt->condition.get());
         int thenJump = emitJump(static_cast<uint8_t>(OpCode::OP_JUMP_IF_FALSE));
-        emitByte(static_cast<uint8_t>(OpCode::OP_POP));
+        emitByte(static_cast<uint8_t>(OpCode::OP_POP), line);
 
         compileNode(ifStmt->thenBranch.get());
         int elseJump = emitJump(static_cast<uint8_t>(OpCode::OP_JUMP));
 
         patchJump(thenJump);
-        emitByte(static_cast<uint8_t>(OpCode::OP_POP));
+        emitByte(static_cast<uint8_t>(OpCode::OP_POP), line);
 
         if (ifStmt->elseBranch != nullptr) {
             compileNode(ifStmt->elseBranch.get());
@@ -120,12 +119,12 @@ void Compiler::compileNode(const Stmt* stmt) {
         compileExpression(whileStmt->condition.get());
 
         int exitJump = emitJump(static_cast<uint8_t>(OpCode::OP_JUMP_IF_FALSE));
-        emitByte(static_cast<uint8_t>(OpCode::OP_POP));
+        emitByte(static_cast<uint8_t>(OpCode::OP_POP), line);
         compileNode(whileStmt->body.get());
         emitLoop(loopStart);
 
         patchJump(exitJump);
-        emitByte(static_cast<uint8_t>(OpCode::OP_POP));
+        emitByte(static_cast<uint8_t>(OpCode::OP_POP), line);
     }
     else if (auto funcStmt = dynamic_cast<const FunctionStatement*>(stmt)) {
         AdiFunction* function = vm->allocateObject<AdiFunction>(funcStmt->name, funcStmt);
@@ -151,11 +150,11 @@ void Compiler::compileNode(const Stmt* stmt) {
         current = enclosing;
 
         uint8_t nameConst = parseVariable(funcStmt->name);
-        emitBytes(static_cast<uint8_t>(OpCode::OP_CLOSURE), makeConstant(compiledFunction));
+        emitBytes(static_cast<uint8_t>(OpCode::OP_CLOSURE), makeConstant(compiledFunction), line);
 
         for (const auto& upvalue : upvalues) {
-            emitByte(upvalue.isLocal ? 1 : 0);
-            emitByte(upvalue.index);
+            emitByte(upvalue.isLocal ? 1 : 0, line);
+            emitByte(upvalue.index, line);
         }
 
         defineVariable(nameConst);
@@ -164,9 +163,9 @@ void Compiler::compileNode(const Stmt* stmt) {
         if (returnStmt->value != nullptr) {
             compileExpression(returnStmt->value.get());
         } else {
-            emitByte(static_cast<uint8_t>(OpCode::OP_NIL));
+            emitByte(static_cast<uint8_t>(OpCode::OP_NIL), line);
         }
-        emitByte(static_cast<uint8_t>(OpCode::OP_RETURN));
+        emitByte(static_cast<uint8_t>(OpCode::OP_RETURN), line);
     }
     else if (auto structStmt = dynamic_cast<const StructStmt*>(stmt)) {
         uint8_t nameConst = makeConstant(structStmt->name);
@@ -234,9 +233,11 @@ void Compiler::compileNode(const Stmt* stmt) {
         emitConstant(structDef);
         defineVariable(nameConst);
     }
-   
 }
+
 void Compiler::compileExpression(const Expr* expr) {
+    int line = expr->line;
+
     if (auto num = dynamic_cast<const NumberExpr*>(expr)) {
         emitConstant(num->value);
     }
@@ -246,24 +247,24 @@ void Compiler::compileExpression(const Expr* expr) {
     else if (auto unary = dynamic_cast<const UnaryExpr*>(expr)) {
         compileExpression(unary->right.get());
         switch (unary->op) {
-            case TokenType::MINUS: emitByte(static_cast<uint8_t>(OpCode::OP_NEGATE)); break;
-            case TokenType::BANG:  emitByte(static_cast<uint8_t>(OpCode::OP_NOT)); break;
+            case TokenType::MINUS: emitByte(static_cast<uint8_t>(OpCode::OP_NEGATE), line); break;
+            case TokenType::BANG:  emitByte(static_cast<uint8_t>(OpCode::OP_NOT), line); break;
             default: break;
         }
     }
     else if (auto var = dynamic_cast<const VariableExpr*>(expr)) {
         if (var->name == "true") {
-            emitByte(static_cast<uint8_t>(OpCode::OP_TRUE));
+            emitByte(static_cast<uint8_t>(OpCode::OP_TRUE), line);
         } else if (var->name == "false") {
-            emitByte(static_cast<uint8_t>(OpCode::OP_FALSE));
+            emitByte(static_cast<uint8_t>(OpCode::OP_FALSE), line);
         } else {
             int arg = resolveLocal(current, var->name);
             if (arg != -1) {
-                emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(arg));
+                emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(arg), line);
             } else if ((arg = resolveUpvalue(current, var->name)) != -1) {
-                emitBytes(static_cast<uint8_t>(OpCode::OP_GET_UPVALUE), static_cast<uint8_t>(arg));
+                emitBytes(static_cast<uint8_t>(OpCode::OP_GET_UPVALUE), static_cast<uint8_t>(arg), line);
             } else {
-                emitBytes(static_cast<uint8_t>(OpCode::OP_GET_GLOBAL), makeConstant(var->name));
+                emitBytes(static_cast<uint8_t>(OpCode::OP_GET_GLOBAL), makeConstant(var->name), line);
             }
         }
     }
@@ -271,11 +272,11 @@ void Compiler::compileExpression(const Expr* expr) {
         compileExpression(assign->value.get());
         int arg = resolveLocal(current, assign->name);
         if (arg != -1) {
-            emitBytes(static_cast<uint8_t>(OpCode::OP_SET_LOCAL), static_cast<uint8_t>(arg));
+            emitBytes(static_cast<uint8_t>(OpCode::OP_SET_LOCAL), static_cast<uint8_t>(arg), line);
         } else if ((arg = resolveUpvalue(current, assign->name)) != -1) {
-            emitBytes(static_cast<uint8_t>(OpCode::OP_SET_UPVALUE), static_cast<uint8_t>(arg));
+            emitBytes(static_cast<uint8_t>(OpCode::OP_SET_UPVALUE), static_cast<uint8_t>(arg), line);
         } else {
-            emitBytes(static_cast<uint8_t>(OpCode::OP_SET_GLOBAL), makeConstant(assign->name));
+            emitBytes(static_cast<uint8_t>(OpCode::OP_SET_GLOBAL), makeConstant(assign->name), line);
         }
     }
     else if (auto bin = dynamic_cast<const BinaryExpr*>(expr)) {
@@ -283,13 +284,13 @@ void Compiler::compileExpression(const Expr* expr) {
         compileExpression(bin->right.get());
 
         switch (bin->op) {
-            case TokenType::PLUS: emitByte(static_cast<uint8_t>(OpCode::OP_ADD)); break;
-            case TokenType::MINUS: emitByte(static_cast<uint8_t>(OpCode::OP_SUBTRACT)); break;
-            case TokenType::STAR: emitByte(static_cast<uint8_t>(OpCode::OP_MULTIPLY)); break;
-            case TokenType::SLASH: emitByte(static_cast<uint8_t>(OpCode::OP_DIVIDE)); break;
-            case TokenType::EQUAL_EQUAL: emitByte(static_cast<uint8_t>(OpCode::OP_EQUAL)); break;
-            case TokenType::GREATER: emitByte(static_cast<uint8_t>(OpCode::OP_GREATER)); break;
-            case TokenType::LESS: emitByte(static_cast<uint8_t>(OpCode::OP_LESS)); break;
+            case TokenType::PLUS: emitByte(static_cast<uint8_t>(OpCode::OP_ADD), line); break;
+            case TokenType::MINUS: emitByte(static_cast<uint8_t>(OpCode::OP_SUBTRACT), line); break;
+            case TokenType::STAR: emitByte(static_cast<uint8_t>(OpCode::OP_MULTIPLY), line); break;
+            case TokenType::SLASH: emitByte(static_cast<uint8_t>(OpCode::OP_DIVIDE), line); break;
+            case TokenType::EQUAL_EQUAL: emitByte(static_cast<uint8_t>(OpCode::OP_EQUAL), line); break;
+            case TokenType::GREATER: emitByte(static_cast<uint8_t>(OpCode::OP_GREATER), line); break;
+            case TokenType::LESS: emitByte(static_cast<uint8_t>(OpCode::OP_LESS), line); break;
             default: break;
         }
     }
@@ -298,28 +299,28 @@ void Compiler::compileExpression(const Expr* expr) {
         for (const auto& arg : callExpr->arguments) {
             compileExpression(arg.get());
         }
-        emitBytes(static_cast<uint8_t>(OpCode::OP_CALL), static_cast<uint8_t>(callExpr->arguments.size()));
+        emitBytes(static_cast<uint8_t>(OpCode::OP_CALL), static_cast<uint8_t>(callExpr->arguments.size()), line);
     }
     else if (auto structInst = dynamic_cast<const StructInstanceExpr*>(expr)) {
         int arg = resolveLocal(current, structInst->name);
         if (arg != -1) {
-            emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(arg));
+            emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(arg), line);
         } else {
-            emitBytes(static_cast<uint8_t>(OpCode::OP_GET_GLOBAL), makeConstant(structInst->name));
+            emitBytes(static_cast<uint8_t>(OpCode::OP_GET_GLOBAL), makeConstant(structInst->name), line);
         }
         for (const auto& argExpr : structInst->arguments) {
             compileExpression(argExpr.get());
         }
-        emitBytes(static_cast<uint8_t>(OpCode::OP_STRUCT_INSTANCE), static_cast<uint8_t>(structInst->arguments.size()));
+        emitBytes(static_cast<uint8_t>(OpCode::OP_STRUCT_INSTANCE), static_cast<uint8_t>(structInst->arguments.size()), line);
     }
     else if (auto getExpr = dynamic_cast<const GetExpr*>(expr)) {
         compileExpression(getExpr->object.get());
-        emitBytes(static_cast<uint8_t>(OpCode::OP_GET), makeConstant(getExpr->name));
+        emitBytes(static_cast<uint8_t>(OpCode::OP_GET), makeConstant(getExpr->name), line);
     }
     else if (auto setExpr = dynamic_cast<const SetExpr*>(expr)) {
         compileExpression(setExpr->value.get());
         compileExpression(setExpr->object.get());
-        emitBytes(static_cast<uint8_t>(OpCode::OP_SET), makeConstant(setExpr->name));
+        emitBytes(static_cast<uint8_t>(OpCode::OP_SET), makeConstant(setExpr->name), line);
     }
     else if (auto superExpr = dynamic_cast<const SuperExpr*>(expr)) {
         if (currentClass == nullptr || !currentClass->hasSuperclass) {
@@ -328,41 +329,40 @@ void Compiler::compileExpression(const Expr* expr) {
 
         int thisSlot = resolveLocal(current, "this");
         if (thisSlot != -1) {
-            emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(thisSlot));
+            emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(thisSlot), line);
         } else {
             throw std::runtime_error("Compiler Error: Internal error - 'this' not found.");
         }
 
         int superArg = resolveLocal(current, currentClass->superclassName);
         if (superArg != -1) {
-            emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(superArg));
+            emitBytes(static_cast<uint8_t>(OpCode::OP_GET_LOCAL), static_cast<uint8_t>(superArg), line);
         } else {
-            emitBytes(static_cast<uint8_t>(OpCode::OP_GET_GLOBAL), makeConstant(currentClass->superclassName));
+            emitBytes(static_cast<uint8_t>(OpCode::OP_GET_GLOBAL), makeConstant(currentClass->superclassName), line);
         }
 
         for (const auto& arg : superExpr->arguments) {
             compileExpression(arg.get());
         }
 
-        emitBytes(static_cast<uint8_t>(OpCode::OP_SUPER), makeConstant(superExpr->method));
-        emitByte(static_cast<uint8_t>(superExpr->arguments.size()));
+        emitBytes(static_cast<uint8_t>(OpCode::OP_SUPER), makeConstant(superExpr->method), line);
+        emitByte(static_cast<uint8_t>(superExpr->arguments.size()), line);
     }
     else if (auto arrExpr = dynamic_cast<const ArrayExpr*>(expr)) {
         for (const auto& element : arrExpr->elements) {
             compileExpression(element.get());
         }
-        emitBytes(static_cast<uint8_t>(OpCode::OP_ARRAY), static_cast<uint8_t>(arrExpr->elements.size()));
+        emitBytes(static_cast<uint8_t>(OpCode::OP_ARRAY), static_cast<uint8_t>(arrExpr->elements.size()), line);
     }
     else if (auto indexGet = dynamic_cast<const IndexGetExpr*>(expr)) {
         compileExpression(indexGet->target.get());
         compileExpression(indexGet->index.get());
-        emitByte(static_cast<uint8_t>(OpCode::OP_INDEX_GET));
+        emitByte(static_cast<uint8_t>(OpCode::OP_INDEX_GET), line);
     }
     else if (auto indexSet = dynamic_cast<const IndexSetExpr*>(expr)) {
         compileExpression(indexSet->value.get());
         compileExpression(indexSet->target.get());
         compileExpression(indexSet->index.get());
-        emitByte(static_cast<uint8_t>(OpCode::OP_INDEX_SET));
+        emitByte(static_cast<uint8_t>(OpCode::OP_INDEX_SET), line);
     }
-    
 }
