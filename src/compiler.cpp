@@ -2,6 +2,7 @@
 #include "vm.h"
 #include "stdio.h"
 #include "math.h"
+#include "os.h"
 #include "string.h"
 #include <stdexcept>
 #include <iostream>
@@ -13,6 +14,8 @@ Value Compiler::loadNativeModule(const std::string& name) {
         return createMathModule(vm);
     } else if (name == "string"){
         return createStringModule(vm);
+    } else if (name == "os") {
+        return createOSModule(vm);
     }
     throw std::runtime_error("Compiler Error: Unknown module '@import " + name + "'.");
 }

@@ -1,12 +1,19 @@
 @import stdio;
-@import string;
+@import os;
 
-print("--- Testing AdiLang String Module v0.14.2 ---");
+print("--- Testing AdiLang OS Module v0.14.3 ---");
 
-let text = "Hello, AdiLang World!";
+// Check an environment variable
+let user = os.getenv("USER");
+print("Current User:");
+print(user);
 
-print(string.length(text));
-print(string.toUpper("hello world"));
-print(string.contains(text, "AdiLang"));
-print(string.contains(text, "Python"));
-print(string.substr(text, 7, 7));
+// Check if a file exists
+let hasConfig = os.exists("config.adi");
+print("Config exists:");
+print(hasConfig);
+
+// Run a quick shell command
+let exitCode = os.system("echo 'Hello from OS shell!'");
+print("Command exit code:");
+print(exitCode);
