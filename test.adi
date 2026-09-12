@@ -1,21 +1,12 @@
-@import math;
+@import stdio;
+@import string;
 
-print("--- Testing AdiLang Math Module v0.15.0 ---");
+print("--- Testing AdiLang String Module v0.14.2 ---");
 
-// Roots and Powers
-print(math.sqrt(144));       // 12
-print(math.pow(2, 4));       // 16
-print(math.abs(-15.5));      // 15.5
+let text = "Hello, AdiLang World!";
 
-// Rounding
-print(math.floor(7.9));      // 7
-print(math.ceil(7.1));       // 8
-print(math.round(7.5));      // 8
-
-// Trigonometry (0 radians)
-print(math.sin(0));          // 0
-print(math.cos(0));          // 1
-
-// Constants
-print(math.PI);              // 3.141592653589793
-print(math.E);               // 2.718281828459045
+print(string.length(text));
+print(string.toUpper("hello world"));
+print(string.contains(text, "AdiLang"));
+print(string.contains(text, "Python"));
+print(string.substr(text, 7, 7));
