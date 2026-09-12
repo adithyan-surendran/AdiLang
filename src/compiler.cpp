@@ -6,6 +6,7 @@
 #include "string.h"
 #include "time.h"
 #include "random.h"
+#include "json.h"
 #include <stdexcept>
 #include <iostream>
 
@@ -22,6 +23,8 @@ Value Compiler::loadNativeModule(const std::string& name) {
         return createTimeModule(vm);
     } else if (name == "random"){
         return createRandomModule(vm);
+    } else if (name == "json"){
+        return createJsonModule(vm);
     }
     throw std::runtime_error("Compiler Error: Unknown module '@import " + name + "'.");
 }
