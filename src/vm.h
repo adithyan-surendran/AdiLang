@@ -23,25 +23,15 @@ enum class InterpretResult {
 };
 
 class VM {
-public:
-    template <typename T, typename... Args>
-    T* allocateObject(Args&&... args) {
-        T* object = new T(std::forward<Args>(args)...);
-        
-        // Explicitly cast to AdiObject* for the GC linked list tracking
-        AdiObject* gcObject = static_cast<AdiObject*>(object);
-        gcObject->next = objects;
-        objects = gcObject;
-        
-        return object;
-    }
-
 private:
     static constexpr int FRAMES_MAX = 64;
     static constexpr int STACK_MAX = FRAMES_MAX * 256;
 
     // Master GC linked list anchor and base object definition
     AdiObject* objects = nullptr;
+
+    size_t bytesAllocated = 0;
+    size_t nextGC = 1024 * 1024; // Initial threshold: 1 MB
 
     CallFrame frames[FRAMES_MAX];
     int frameCount = 0;
@@ -98,13 +88,13 @@ private:
     }
 
     void closeUpvalues(Value* last) {
-    while (openUpvalues != nullptr && openUpvalues->location >= last) {
-        AdiUpvalue* upvalue = openUpvalues;
-        upvalue->closed = *upvalue->location;
-        upvalue->location = &upvalue->closed;
-        openUpvalues = upvalue->next;
+        while (openUpvalues != nullptr && openUpvalues->location >= last) {
+            AdiUpvalue* upvalue = openUpvalues;
+            upvalue->closed = *upvalue->location;
+            upvalue->location = &upvalue->closed;
+            openUpvalues = upvalue->next;
+        }
     }
-}
 
     void resetStack() {
         stack.clear();
@@ -148,6 +138,7 @@ private:
             std::cout << "nil";
         }
     }
+
     void markValue(Value value) {
         if (std::holds_alternative<AdiArray*>(value)) {
             markObject(std::get<AdiArray*>(value));
@@ -232,15 +223,36 @@ private:
                     previous->next = current;
                 }
 
+                bytesAllocated -= sizeof(*unreached); // Decrement tracked heap size
                 delete unreached;
             }
         }
     }
+
 public:
+    template <typename T, typename... Args>
+    T* allocateObject(Args&&... args) {
+        if (bytesAllocated > nextGC) {
+            collectGarbage();
+            nextGC = bytesAllocated * 2; // Double the threshold after collection
+        }
+
+        T* object = new T(std::forward<Args>(args)...);
+        bytesAllocated += sizeof(T);
+        
+        // Explicitly cast to AdiObject* for the GC linked list tracking
+        AdiObject* gcObject = static_cast<AdiObject*>(object);
+        gcObject->next = objects;
+        objects = gcObject;
+        
+        return object;
+    }
+
     void collectGarbage() {
         markRoots();
         sweep();
     }
+
     InterpretResult interpret(Chunk* targetChunk) {
         AdiFunction* scriptFunction = allocateObject<AdiFunction>("script");
         scriptFunction->chunk = std::make_shared<Chunk>(*targetChunk);

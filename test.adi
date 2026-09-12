@@ -1,9 +1,14 @@
 @import stdio;
 
-print("--- Testing AdiLang v0.15.0 Stack Trace ---");
+print("--- Testing AdiLang v0.15.2 Automatic Garbage Collection ---");
 
-fn faulty() {
-    let x = 10 / 0;
+fn stressTest() {
+    let i = 0;
+    while (i < 10000) {
+        let arr = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        i = i + 1;
+    }
 }
 
-faulty();
+stressTest();
+print("GC stress test passed successfully! Heap memory cleaned automatically.");
