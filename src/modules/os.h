@@ -1,8 +1,8 @@
 #ifndef ADILANG_OS_H
 #define ADILANG_OS_H
 
-#include "object.h"
-#include "vm.h"
+#include "core/object.h"
+#include "core/vm.h"
 #include <cstdlib>
 #include <string>
 #include <vector>

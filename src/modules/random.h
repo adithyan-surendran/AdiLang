@@ -1,8 +1,8 @@
 #ifndef ADILANG_RANDOM_H
 #define ADILANG_RANDOM_H
 
-#include "object.h"
-#include "vm.h"
+#include "core/object.h"
+#include "core/vm.h"
 #include <random>
 #include <vector>
 #include <stdexcept>

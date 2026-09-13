@@ -1,8 +1,8 @@
 #ifndef ADILANG_STRING_H
 #define ADILANG_STRING_H
 
-#include "object.h"
-#include "vm.h"
+#include "core/object.h"
+#include "core/vm.h"
 #include <string>
 #include <algorithm>
 #include <vector>

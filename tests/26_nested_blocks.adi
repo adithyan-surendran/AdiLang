@@ -1,0 +1,10 @@
+print("=== NESTED BLOCKS ===");
+
+let x = 10;
+
+if (true) {
+    let y = 20;
+
+    print(x);
+    print(y);
+}

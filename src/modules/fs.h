@@ -1,8 +1,8 @@
 #ifndef ADILANG_FS_H
 #define ADILANG_FS_H
 
-#include "object.h"
-#include "vm.h"
+#include "core/object.h"
+#include "core/vm.h"
 #include <fstream>
 #include <sstream>
 

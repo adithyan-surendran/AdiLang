@@ -3,7 +3,8 @@
 
 #include "ast.h"
 #include "lexer.h"
-#include <vector> 
+
+#include <vector>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -13,13 +14,14 @@ class Parser {
 private:
     std::vector<Token> tokens;
     int current = 0;
+
     std::unordered_set<std::string> structNames;
 
     // Error recovery flags
     bool hadError = false;
     bool panicMode = false;
 
-    // Error handling & Synchronization
+    // Error handling
     void errorAt(const Token& token, const std::string& message);
     void error(const std::string& message);
     void synchronize();
@@ -39,21 +41,21 @@ private:
     std::unique_ptr<Stmt> printStatement();
     std::unique_ptr<Stmt> expressionStatement();
 
-    // Expressions (Precedence Hierarchy)
+    // Expressions
     std::unique_ptr<Expr> expression();
     std::unique_ptr<Expr> assignment();
-    std::unique_ptr<Expr> orExpression(); 
+    std::unique_ptr<Expr> orExpression();
     std::unique_ptr<Expr> andExpression();
     std::unique_ptr<Expr> equality();
     std::unique_ptr<Expr> comparison();
     std::unique_ptr<Expr> addition();
     std::unique_ptr<Expr> multiplication();
     std::unique_ptr<Expr> unary();
-    std::unique_ptr<Expr> primary(); 
+    std::unique_ptr<Expr> primary();
     std::unique_ptr<Expr> call();
     std::unique_ptr<Expr> finishCall(std::unique_ptr<Expr> callee);
 
-    // Helper Token Methods
+    // Token helpers
     Token advance();
     Token peek();
     Token previous();
@@ -61,12 +63,18 @@ private:
     bool check(TokenType type);
     bool match(TokenType type);
 
-    Token consume(TokenType type, const std::string& message);
+    Token consume(
+        TokenType type,
+        const std::string& message
+    );
 
 public:
     explicit Parser(const std::vector<Token>& tokens);
 
     std::unique_ptr<Program> parse();
+
+    // Returns true if any parser error occurred.
+    bool hasError() const;
 };
 
 #endif // ADILANG_PARSER_H

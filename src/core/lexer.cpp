@@ -7,6 +7,17 @@ Lexer::Lexer(const std::string& source)
 }
 
 std::vector<Token> Lexer::scanTokens() {
+    for (const auto& token : tokens)
+    {
+        std::cout
+            << "TOKEN: "
+            << static_cast<int>(token.type)
+            << " | '"
+            << token.lexeme
+            << "' | line "
+            << token.line
+            << "\n";
+    }
 
     while (current < source.length()) {
 
@@ -305,9 +316,6 @@ void Lexer::identifier() {
     if (text == "import")
         addToken(TokenType::IMPORT);
 
-    else if (text == "let")
-        addToken(TokenType::LET);
-    
     else if (text == "let")
         addToken(TokenType::LET);
 

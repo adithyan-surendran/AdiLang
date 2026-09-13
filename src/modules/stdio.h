@@ -1,8 +1,8 @@
 #ifndef ADILANG_STDIO_H
 #define ADILANG_STDIO_H
 
-#include "object.h"
-#include "vm.h"
+#include "core/object.h"
+#include "core/vm.h"
 #include <iostream>
 #include <string>
 #include <vector>

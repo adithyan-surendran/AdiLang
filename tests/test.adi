@@ -1,5 +1,0 @@
-@import stdio;
-
-let data = {"score": 95, "status": "active"};
-print(data["score"]); // expect: 95
-print(data["status"]); // expect: active

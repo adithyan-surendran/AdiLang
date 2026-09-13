@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 # Configuration
-INTERPRETER_PATH = "./build/adilang"
+INTERPRETER_PATH = "./bin/adilang"
 TEST_DIR = "tests"
 
 def run_tests():

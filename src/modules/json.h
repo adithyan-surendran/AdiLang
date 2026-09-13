@@ -1,8 +1,8 @@
 #ifndef ADILANG_JSON_H
 #define ADILANG_JSON_H
 
-#include "object.h"
-#include "vm.h"
+#include "core/object.h"
+#include "core/vm.h"
 #include <string>
 #include <vector>
 #include <stdexcept>

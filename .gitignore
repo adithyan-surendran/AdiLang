@@ -1,4 +1,5 @@
 build/
-adilang
-test_output.txt
+bin/
+*.txt
+*.log
 .DS_Store

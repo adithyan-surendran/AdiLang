@@ -1,8 +1,8 @@
 #ifndef ADILANG_TIME_H
 #define ADILANG_TIME_H
 
-#include "object.h"
-#include "vm.h"
+#include "core/object.h"
+#include "core/vm.h"
 #include <chrono>
 #include <thread>
 #include <vector>

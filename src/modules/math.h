@@ -1,8 +1,8 @@
 #ifndef ADILANG_MATH_H
 #define ADILANG_MATH_H
 
-#include "object.h"
-#include "vm.h"
+#include "core/object.h"
+#include "core/vm.h"
 #include <cmath>
 #include <stdexcept>
 #include <vector>
